@@ -21,7 +21,7 @@ import {
   Vector3,
   WebGLRenderer,
 } from "three";
-import { Panel, useDemoSignal } from "./components";
+import { Panel, useDemoRenderMode, useDemoSignal } from "./components";
 import { palette, type WidgetMode } from "./theme";
 
 function neonLine(color: string) {
@@ -352,16 +352,20 @@ const widgetMeta: Record<WidgetMode, { title: string; subtitle: string; accent: 
 export function ThreeWidget({ mode, compact = false }: { mode: WidgetMode; compact?: boolean }) {
   const meta = widgetMeta[mode];
   const signal = useDemoSignal();
+  const renderMode = useDemoRenderMode();
+  const showHud = renderMode === "card" && !compact;
   return (
     <Panel title={meta.title} subtitle={meta.subtitle} code="THREE-CLI / WEBGL" accent={meta.accent}>
       <div
         className={`three-widget ${compact ? "three-widget--compact" : ""}`}
         style={{ transform: `translate3d(${signal.twist * 8}px, ${signal.lift * -6}px, 0)` }}
       >
-        <div className="three-widget__hud">
-          <span>{signal.active ? "VECTOR DRIVE" : "NEON VOLUME"}</span>
-          <span>{mode.toUpperCase()}</span>
-        </div>
+        {showHud ? (
+          <div className="three-widget__hud">
+            <span>{signal.active ? "VECTOR DRIVE" : "NEON VOLUME"}</span>
+            <span>{mode.toUpperCase()}</span>
+          </div>
+        ) : null}
         <ThreeCanvas mode={mode} />
       </div>
     </Panel>

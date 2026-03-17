@@ -32,8 +32,6 @@ import {
   showcaseDemos,
   signalChart,
   tacticalMap,
-  widgetSubtitle,
-  widgetTitle,
   type Accent,
   type DemoMeta,
   type DemoSignal,
@@ -81,6 +79,21 @@ function volumeBar(volume: number) {
   const units = 10;
   const filled = Math.round((clamp(volume, 0, 100) / 100) * units);
   return `${"█".repeat(filled)}${"░".repeat(units - filled)}`;
+}
+
+function marqueeFrame(content: string, width: number, phase: number) {
+  const normalized = content.replace(/\s+/g, " ").trim().toUpperCase();
+  if (width <= 0) {
+    return "";
+  }
+  if (normalized.length <= width) {
+    return normalized;
+  }
+  const gap = "   /   ";
+  const loop = `${normalized}${gap}`;
+  const offset = Math.floor(phase / 2) % loop.length;
+  const repeated = loop.repeat(Math.ceil((width * 2) / loop.length) + 2);
+  return repeated.slice(offset, offset + width);
 }
 
 function tileWidth(columns: number) {
@@ -158,6 +171,7 @@ export function NeonPanel({
   borderStyle,
   borderColor,
   backgroundColor,
+  headerContent,
   headerRight,
   panelRef,
   onMouseDown,
@@ -178,6 +192,7 @@ export function NeonPanel({
   borderStyle?: "single" | "double" | "heavy";
   borderColor?: string;
   backgroundColor?: string;
+  headerContent?: ReactNode;
   headerRight?: ReactNode;
   panelRef?: Ref<BoxRenderable>;
   onMouseDown?: (event: OpenMouseEvent) => void;
@@ -207,20 +222,31 @@ export function NeonPanel({
       onMouseOver={onMouseOver}
       onMouseOut={onMouseOut}
     >
-      <box paddingX={1} flexDirection="column">
-        <box justifyContent="space-between" alignItems="center">
-          <text fg={colors.paper}>
-            <span fg={accentFg}>[{code ?? "NEON"}]</span>
-            <strong> {title.toUpperCase()}</strong>
-          </text>
-          {headerRight ? <box marginLeft={1}>{headerRight}</box> : null}
+      <box paddingX={1} flexDirection="column" flexGrow={1} minHeight={0}>
+        {headerContent ? (
+          <box justifyContent="space-between" alignItems="center">
+            <box flexGrow={1}>{headerContent}</box>
+            {headerRight ? <box marginLeft={1}>{headerRight}</box> : null}
+          </box>
+        ) : (
+          <box flexDirection="column">
+            <box justifyContent="space-between" alignItems="center">
+              <text fg={colors.paper}>
+                <span fg={accentFg}>[{code ?? "NEON"}]</span>
+                <strong> {title.toUpperCase()}</strong>
+              </text>
+              {headerRight ? <box marginLeft={1}>{headerRight}</box> : null}
+            </box>
+            {subtitle && showSubtitle ? (
+              <text fg={colors.dim}>
+                <span>{subtitle.toUpperCase()}</span>
+              </text>
+            ) : null}
+          </box>
+        )}
+        <box flexGrow={1} minHeight={0}>
+          {children}
         </box>
-        {subtitle && showSubtitle ? (
-          <text fg={colors.dim}>
-            <span>{subtitle.toUpperCase()}</span>
-          </text>
-        ) : null}
-        {children}
       </box>
     </box>
   );
@@ -229,20 +255,13 @@ export function NeonPanel({
 function ThreeInset({
   mode,
   height,
-  accent,
-  caption,
 }: {
   mode: WidgetMode;
   height: number;
-  accent: string;
-  caption: string;
 }) {
   const signal = useDemoSignal();
   return (
-    <box flexDirection="column" gap={1}>
-      <text fg={accent}>
-        <strong>{caption.toUpperCase()}</strong>
-      </text>
+    <box flexGrow={1} minHeight={0}>
       <ThreeSceneView mode={mode} height={height} signal={signal} />
     </box>
   );
@@ -271,8 +290,8 @@ export function AppHeader({
 }) {
   const activeAccent = section === "three" || section === "all" ? colors.phosphor : colors.amber;
   const controls = maximized
-    ? "ARROWS CYCLE  /  ENTER,F REFRESH AUDIO  /  ESC,T RETURN  /  1-5,H/L SECTIONS  /  +/- VOL  /  Q EXIT"
-    : "ARROWS MOVE  /  ENTER,F MAX  /  RIGHT-CLICK MAX  /  MOUSE LIVE  /  1-5,H/L SECTIONS  /  +/- VOL  /  Q EXIT";
+    ? "ARROWS CYCLE  /  ENTER,F REFRESH AUDIO  /  ESC,T RETURN  /  +/- VOL  /  Q EXIT"
+    : "ARROWS MOVE  /  ENTER,F MAX  /  RIGHT-CLICK MAX  /  MOUSE LIVE  /  +/- VOL  /  Q EXIT";
 
   return (
     <box
@@ -296,7 +315,7 @@ export function AppHeader({
       </box>
       <box justifyContent="space-between" flexWrap="wrap" gap={1}>
         <text fg={colors.dim}>{controls}</text>
-        <box alignItems="center" gap={1}>
+        <box flexDirection="row" alignItems="center" gap={1}>
           <box backgroundColor={colors.violet} paddingX={1} onMouseDown={onVolumeDown}>
             <text fg={colors.void}>
               <strong>-</strong>
@@ -414,15 +433,15 @@ function warningRows(signal: DemoSignal, phase: number) {
 }
 
 function chartHeight(renderMode: RenderMode, fullHeight: number) {
-  if (renderMode === "compact") return 4;
-  if (renderMode === "max") return Math.max(10, fullHeight);
-  return 7;
+  if (renderMode === "compact") return Math.max(5, fullHeight);
+  if (renderMode === "max") return Math.max(12, fullHeight);
+  return Math.max(7, fullHeight);
 }
 
 function chartWidth(renderMode: RenderMode, contentWidth: number) {
-  if (renderMode === "compact") return Math.max(18, contentWidth - 4);
-  if (renderMode === "max") return Math.max(42, contentWidth - 6);
-  return Math.max(24, contentWidth - 6);
+  if (renderMode === "compact") return Math.max(18, contentWidth - 2);
+  if (renderMode === "max") return Math.max(42, contentWidth - 4);
+  return Math.max(24, contentWidth - 4);
 }
 
 function renderComponentIndex(contentWidth: number, signal: DemoSignal, renderMode: RenderMode) {
@@ -500,18 +519,11 @@ function DemoBody({
       );
     }
     case "live-feed": {
-      return renderMode === "compact" ? (
-        <box flexDirection="column">
+      return (
+        <box flexDirection="column" flexGrow={1} minHeight={0}>
           <text fg={colors.signal}>{liveFeed(width, Math.max(4, height), drivenPhase)}</text>
           <text fg={colors.alarm}>SUBJECT EVA-02 / {signal.pressed ? "PINNED TRACK" : "LIVE"}</text>
         </box>
-      ) : (
-        <ThreeInset
-          mode="capture"
-          height={height}
-          accent={colors.alarm}
-          caption={signal.pressed ? "Subject Eva-02 / pinned track / corruption active" : "Subject Eva-02 / capture lock / corruption active"}
-        />
       );
     }
     case "event-log": {
@@ -537,7 +549,11 @@ function DemoBody({
       return <text fg={colors.paper}>{channelMatrix(width, drivenPhase + Math.round(signal.depth * 13))}</text>;
     }
     case "telemetry-rack": {
-      return <text fg={colors.phosphor}>{barChart(Math.max(12, width), Math.max(4, height), drivenPhase)}</text>;
+      return (
+        <box flexDirection="column" flexGrow={1} minHeight={0}>
+          <text fg={colors.phosphor}>{barChart(Math.max(12, contentWidth), Math.max(4, height), drivenPhase)}</text>
+        </box>
+      );
     }
     case "biosignal-strip": {
       return <text fg={colors.phosphor}>{signalChart(Math.max(18, width), Math.max(4, height), drivenPhase)}</text>;
@@ -549,16 +565,7 @@ function DemoBody({
       return <text fg={colors.amber}>{psychographChart(Math.max(18, width), Math.max(4, height), drivenPhase)}</text>;
     }
     case "field-ring": {
-      return renderMode === "compact" ? (
-        <text fg={colors.signal}>{circularField(Math.max(18, width), Math.max(4, height), drivenPhase)}</text>
-      ) : (
-        <ThreeInset
-          mode="atfield"
-          height={height}
-          accent={colors.signal}
-          caption={signal.active ? "Locking reticle / field concentration / vector drive" : "Locking reticle / field concentration / live"}
-        />
-      );
+      return <text fg={colors.signal}>{circularField(Math.max(18, width), Math.max(4, height), drivenPhase)}</text>;
     }
     case "hex-heatmap": {
       return <text fg={colors.amber}>{heatmap(Math.max(16, width), Math.max(4, height), drivenPhase)}</text>;
@@ -598,47 +605,17 @@ function DemoBody({
       );
     }
     case "tactical-map": {
-      return renderMode === "compact" ? (
-        <text fg={colors.phosphor}>{tacticalMap(Math.max(18, width), Math.max(4, height), drivenPhase)}</text>
-      ) : (
-        <ThreeInset
-          mode="mapslab"
-          height={height}
-          accent={colors.phosphor}
-          caption={signal.active ? "Topographic sweep / terrain mesh / vector lock" : "Topographic sweep / terrain mesh / live"}
-        />
-      );
+      return <text fg={colors.phosphor}>{tacticalMap(Math.max(18, width), Math.max(4, height), drivenPhase)}</text>;
     }
     case "network-topology": {
-      return renderMode === "compact" ? (
-        <text fg={colors.amber}>{networkTopology(Math.max(18, width), Math.max(4, height), drivenPhase)}</text>
-      ) : (
-        <ThreeInset
-          mode="lattice"
-          height={height}
-          accent={colors.amber}
-          caption={signal.active ? "Localized breaks / mesh redraw / cursor focus" : "Localized breaks / mesh redraw / live"}
-        />
-      );
+      return <text fg={colors.amber}>{networkTopology(Math.max(18, width), Math.max(4, height), drivenPhase)}</text>;
     }
     case "component-index": {
       return <box flexDirection="column">{renderComponentIndex(Math.max(18, width), signal, renderMode)}</box>;
     }
     default: {
       if (demo.mode) {
-        return (
-          <box flexDirection="column" gap={1}>
-            <text fg={colors[demo.accent]}>
-              <strong>{signal.active ? "VECTOR DRIVE / LIVE VOLUME" : "NEON VOLUME / READY"}</strong>
-            </text>
-            <ThreeInset
-              mode={demo.mode}
-              height={height}
-              accent={colors[demo.accent]}
-              caption={`${widgetTitle(demo.mode)} / ${signal.pressed ? "pressure lock" : "free rotation"} / ${widgetSubtitle(demo.mode)}`}
-            />
-          </box>
-        );
+        return <ThreeInset mode={demo.mode} height={height} />;
       }
       return (
         <text fg={colors.paper}>
@@ -650,9 +627,28 @@ function DemoBody({
 }
 
 function shellMinHeight(renderMode: RenderMode, sceneHeight: number) {
-  if (renderMode === "max") return sceneHeight + 5;
-  if (renderMode === "compact") return sceneHeight + 5;
-  return sceneHeight + 6;
+  if (renderMode === "max") return sceneHeight + 4;
+  if (renderMode === "compact") return sceneHeight + 4;
+  return sceneHeight + 5;
+}
+
+function WidgetHeader({
+  demo,
+  phase,
+  width,
+  accent,
+}: {
+  demo: DemoMeta;
+  phase: number;
+  width: number;
+  accent: Accent;
+}) {
+  const header = marqueeFrame(`[${demo.code}] ${demo.title} / ${demo.subtitle}`, width, phase);
+  return (
+    <text fg={colors[accent]}>
+      <strong>{header}</strong>
+    </text>
+  );
 }
 
 function DemoShell({
@@ -665,7 +661,6 @@ function DemoShell({
   width,
   contentWidth,
   sceneHeight,
-  actionLabel,
   onSelect,
   onAction,
 }: {
@@ -678,7 +673,6 @@ function DemoShell({
   width: number | `${number}%`;
   contentWidth: number;
   sceneHeight: number;
-  actionLabel?: string;
   onSelect: (id: string) => void;
   onAction: (demo: DemoMeta) => void;
 }) {
@@ -711,28 +705,18 @@ function DemoShell({
         title={demo.title}
         code={demo.code}
         accent={selected ? demo.accent : "violet"}
-        showSubtitle={false}
         width={width}
         minHeight={shellMinHeight(renderMode, sceneHeight)}
         borderStyle={selected ? "heavy" : "single"}
         borderColor={borderTone}
         backgroundColor={bodyTone}
-        headerRight={
-          renderMode === "max" && actionLabel ? (
-            <box
-              backgroundColor={selected ? colors[demo.accent] : colors.alarm}
-              paddingX={1}
-              onMouseDown={(event) => {
-                event.stopPropagation();
-                onSelect(demo.id);
-                onAction(demo);
-              }}
-            >
-              <text fg={colors.void}>
-                <strong>{actionLabel}</strong>
-              </text>
-            </box>
-          ) : undefined
+        headerContent={
+          <WidgetHeader
+            demo={demo}
+            phase={phase}
+            width={Math.max(18, contentWidth - 1)}
+            accent={selected ? demo.accent : "violet"}
+          />
         }
         onMouseOver={(event) => {
           onSelect(demo.id);
@@ -855,7 +839,7 @@ export function DemoFocus({
   contentWidth: number;
   sceneHeight: number;
   onSelect: (id: string) => void;
-  onClose: (demo: DemoMeta) => void;
+  onClose: () => void;
 }) {
   return (
     <DemoShell
@@ -868,9 +852,8 @@ export function DemoFocus({
       width="100%"
       contentWidth={contentWidth}
       sceneHeight={sceneHeight}
-      actionLabel="CLOSE"
       onSelect={onSelect}
-      onAction={onClose}
+      onAction={() => onClose()}
     />
   );
 }

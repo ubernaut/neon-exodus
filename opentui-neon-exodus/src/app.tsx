@@ -3,19 +3,18 @@ import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 import { createAudioPlayer } from "./audio";
 import {
   AppHeader,
-  DeckStatus,
   DemoDeck,
   DemoFocus,
-  Tabs,
   cycleDemo,
   demoById,
   demoIndex,
   moveGridSelection,
   useTicker,
 } from "./components";
-import { clamp, colors, demos, demosForSection, sections, type SectionId } from "./theme";
+import { clamp, colors, demos, demosForSection } from "./theme";
 
-function columnsForSection(section: SectionId, width: number) {
+function columnsForSection(width: number) {
+  const section = "all";
   if (section === "all") {
     return width >= 236 ? 4 : width >= 176 ? 3 : width >= 112 ? 2 : 1;
   }
@@ -25,25 +24,26 @@ function columnsForSection(section: SectionId, width: number) {
   return width >= 176 ? 3 : width >= 116 ? 2 : 1;
 }
 
-function gridSceneHeight(section: SectionId, width: number, height: number) {
+function gridSceneHeight(width: number, height: number) {
+  const section = "all";
   if (section === "all") {
-    return width >= 236 ? 4 : width >= 176 ? 5 : height < 42 ? 5 : 6;
+    return width >= 236 ? 6 : width >= 176 ? 7 : height < 42 ? 6 : 8;
   }
   if (section === "three") {
-    return height < 40 ? 6 : 8;
+    return height < 40 ? 8 : 10;
   }
-  return height < 40 ? 5 : 7;
+  return height < 40 ? 6 : 8;
 }
 
 function contentWidth(width: number, columns: number) {
   const totalGap = Math.max(0, columns - 1);
-  return Math.max(24, Math.floor((width - 4 - totalGap * 2) / columns) - 6);
+  return Math.max(24, Math.floor((width - 4 - totalGap * 2) / columns) - 4);
 }
 
 export function App() {
   const phase = useTicker(120);
   const { width, height } = useTerminalDimensions();
-  const [section, setSection] = useState<SectionId>("all");
+  const section = "all";
   const [selectedId, setSelectedId] = useState(demos[0]?.id ?? "");
   const [maximizedId, setMaximizedId] = useState<string | null>(null);
   const [flashUntil, setFlashUntil] = useState(10);
@@ -53,11 +53,13 @@ export function App() {
   useEffect(() => () => audio.dispose(), [audio]);
 
   const compact = width < 136 || height < 40;
-  const columns = columnsForSection(section, width);
-  const sceneHeight = gridSceneHeight(section, width, height);
-  const focusSceneHeight = Math.max(12, height - (compact ? 11 : 13));
+  const columns = columnsForSection(width);
+  const sceneHeight = gridSceneHeight(width, height);
+  const focusSceneHeight = maximizedId
+    ? Math.max(16, height - 4)
+    : Math.max(14, height - (compact ? 10 : 12));
   const panelContentWidth = contentWidth(width, columns);
-  const focusContentWidth = Math.max(36, width - 14);
+  const focusContentWidth = maximizedId ? Math.max(48, width - 4) : Math.max(44, width - 10);
   const visibleDemos = demosForSection(section);
   const fallbackDemo = demos[0]!;
 
@@ -68,7 +70,7 @@ export function App() {
     if (!visibleDemos.some((demo) => demo.id === selectedId)) {
       setSelectedId(visibleDemos[0]?.id ?? demos[0]?.id ?? "");
     }
-  }, [section, selectedId, visibleDemos]);
+  }, [selectedId, visibleDemos]);
 
   const selectedDemo =
     demoById(selectedId) ??
@@ -80,18 +82,6 @@ export function App() {
     startTransition(() => {
       setSelectedId(id);
       setFlashUntil(phase + 10);
-    });
-  };
-
-  const changeSection = (next: SectionId) => {
-    startTransition(() => {
-      setSection(next);
-      setMaximizedId(null);
-      setFlashUntil(phase + 10);
-      const nextVisible = demosForSection(next);
-      if (nextVisible.length > 0) {
-        setSelectedId(nextVisible[0]?.id ?? selectedId);
-      }
     });
   };
 
@@ -108,32 +98,10 @@ export function App() {
     audio.play(demo.accent, volume / 100);
   };
 
-  const shiftSection = (direction: -1 | 1) => {
-    const currentIndex = sections.findIndex((entry) => entry.id === section);
-    const next = sections[(currentIndex + direction + sections.length) % sections.length]?.id ?? section;
-    changeSection(next);
-  };
-
   useKeyboard((key) => {
     if (key.name === "q") {
       process.exit(0);
     }
-
-    if (key.name === "h") {
-      shiftSection(-1);
-      return;
-    }
-
-    if (key.name === "l") {
-      shiftSection(1);
-      return;
-    }
-
-    if (key.sequence === "1") changeSection("overview");
-    if (key.sequence === "2") changeSection("signals");
-    if (key.sequence === "3") changeSection("control");
-    if (key.sequence === "4") changeSection("three");
-    if (key.sequence === "5") changeSection("all");
 
     if (key.sequence === "+" || key.sequence === "=") {
       setVolume((current) => clamp(current + 5, 0, 100));
@@ -180,34 +148,16 @@ export function App() {
     }
   });
 
-  return (
-    <box
-      width="100%"
-      height="100%"
-      backgroundColor={colors.void}
-      padding={1}
-      gap={1}
-      flexDirection="column"
-    >
-      <AppHeader
-        section={section}
-        phase={phase}
-        compact={compact}
-        maximized={Boolean(maximizedDemo)}
-        selectedDemo={selectedDemo}
-        volume={volume}
-        onVolumeDown={() => setVolume((current) => clamp(current - 5, 0, 100))}
-        onVolumeUp={() => setVolume((current) => clamp(current + 5, 0, 100))}
-        onMute={() => setVolume((current) => (current === 0 ? 70 : 0))}
-      />
-      <Tabs section={section} onChange={changeSection} compact={width < 96} />
-      <DeckStatus
-        section={section}
-        selectedDemo={selectedDemo}
-        visibleCount={visibleDemos.length}
-        compact={compact}
-      />
-      {maximizedDemo ? (
+  if (maximizedDemo) {
+    return (
+      <box
+        width="100%"
+        height="100%"
+        backgroundColor={colors.void}
+        padding={0}
+        gap={0}
+        flexDirection="column"
+      >
         <box flexGrow={1} overflow="hidden">
           <DemoFocus
             demo={maximizedDemo}
@@ -219,25 +169,49 @@ export function App() {
             onClose={() => setMaximizedId(null)}
           />
         </box>
-      ) : (
-        <scrollbox
-          flexGrow={1}
-          scrollY
-          scrollX={false}
-          style={{
-            rootOptions: { backgroundColor: colors.void },
-            wrapperOptions: { backgroundColor: colors.void },
-            viewportOptions: { backgroundColor: colors.void },
-            contentOptions: { backgroundColor: colors.void },
-            scrollbarOptions: {
-              showArrows: true,
-              trackOptions: {
-                foregroundColor: colors.signal,
-                backgroundColor: colors.panel,
-              },
+      </box>
+    );
+  }
+
+  return (
+    <box
+      width="100%"
+      height="100%"
+      backgroundColor={colors.void}
+      padding={1}
+      gap={1}
+      flexDirection="column"
+    >
+      <scrollbox
+        flexGrow={1}
+        scrollY
+        scrollX={false}
+        style={{
+          rootOptions: { backgroundColor: colors.void },
+          wrapperOptions: { backgroundColor: colors.void },
+          viewportOptions: { backgroundColor: colors.void },
+          contentOptions: { backgroundColor: colors.void },
+          scrollbarOptions: {
+            showArrows: true,
+            trackOptions: {
+              foregroundColor: colors.signal,
+              backgroundColor: colors.panel,
             },
-          }}
-        >
+          },
+        }}
+      >
+        <box flexDirection="column" gap={1}>
+          <AppHeader
+            section={section}
+            phase={phase}
+            compact={compact}
+            maximized={false}
+            selectedDemo={selectedDemo}
+            volume={volume}
+            onVolumeDown={() => setVolume((current) => clamp(current - 5, 0, 100))}
+            onVolumeUp={() => setVolume((current) => clamp(current + 5, 0, 100))}
+            onMute={() => setVolume((current) => (current === 0 ? 70 : 0))}
+          />
           <DemoDeck
             section={section}
             phase={phase}
@@ -249,8 +223,8 @@ export function App() {
             onSelect={selectDemo}
             onMaximize={(demo) => openDemo(demo.id)}
           />
-        </scrollbox>
-      )}
+        </box>
+      </scrollbox>
     </box>
   );
 }

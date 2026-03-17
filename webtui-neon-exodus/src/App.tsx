@@ -1,17 +1,10 @@
-import {
-  startTransition,
-  useEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-  type PointerEvent,
-  type ReactNode,
-} from "react";
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from "react";
 import {
   ChannelMatrix,
   CircularField,
   ComponentIndexPanel,
   CounterBoard,
+  DemoRenderModeProvider,
   DemoSignalProvider,
   EventLog,
   GateStatus,
@@ -22,12 +15,10 @@ import {
   MagiBoard,
   MeterWall,
   NetworkTopology,
-  PillRow,
   ProfileCard,
   Psychograph,
   RouteBoard,
   SectionHeading,
-  StatusBadge,
   TacticalMap,
   WarningStack,
   WaveformStrip,
@@ -37,7 +28,7 @@ import { accents, clamp, type Accent, type WidgetMode } from "./theme";
 import { ThreeWidget } from "./three-widgets";
 
 type ViewId = "overview" | "signals" | "control" | "three" | "all";
-type RenderMode = "card" | "compact" | "max";
+type RenderMode = "card" | "compact" | "dense" | "max";
 
 type DemoDefinition = {
   id: string;
@@ -82,7 +73,7 @@ const viewMeta: Record<ViewId, { label: string; title: string; subtitle: string 
   },
   all: {
     label: "All",
-    title: "All Demo Surfaces",
+    title: "NEON EXODUS",
     subtitle: "Twenty-four interactive widgets compressed into a single large-screen scan wall",
   },
 };
@@ -315,7 +306,9 @@ function InteractiveViewport({
         setSignal(idleSignal);
       }}
     >
-      <DemoSignalProvider signal={signal}>{demo.render(phase, renderMode)}</DemoSignalProvider>
+      <DemoRenderModeProvider mode={renderMode}>
+        <DemoSignalProvider signal={signal}>{demo.render(phase, renderMode)}</DemoSignalProvider>
+      </DemoRenderModeProvider>
     </div>
   );
 }
@@ -324,38 +317,45 @@ function DemoCard({
   demo,
   phase,
   selected,
-  compact,
+  dense,
   onSelect,
   onMaximize,
 }: {
   demo: DemoDefinition;
   phase: number;
   selected: boolean;
-  compact: boolean;
+  dense: boolean;
   onSelect: (id: string) => void;
-  onMaximize: (demo: DemoDefinition) => void;
+  onMaximize: (id: string) => void;
 }) {
   return (
     <article
-      className={`demo-shell ${selected ? "demo-shell--selected" : ""} ${compact ? "demo-shell--compact" : ""}`}
+      className={`demo-shell ${selected ? "demo-shell--selected" : ""} ${dense ? "demo-shell--dense" : ""}`}
       style={{ "--demo-accent": accents[demo.accent] } as CSSProperties}
+      onPointerDown={() => onSelect(demo.id)}
       onClick={() => onSelect(demo.id)}
-      onDoubleClick={() => onMaximize(demo)}
+      onDoubleClick={(event) => {
+        event.stopPropagation();
+        onMaximize(demo.id);
+      }}
     >
       <div className="demo-shell__toolbar">
         <span className="demo-shell__state">{selected ? "SELECTED" : demo.section.toUpperCase()}</span>
         <button
           type="button"
           className="demo-shell__button"
+          onPointerDown={(event) => {
+            event.stopPropagation();
+          }}
           onClick={(event) => {
             event.stopPropagation();
-            onMaximize(demo);
+            onMaximize(demo.id);
           }}
         >
           MAX
         </button>
       </div>
-      <InteractiveViewport demo={demo} phase={phase} renderMode={compact ? "compact" : "card"} />
+      <InteractiveViewport key={demo.id} demo={demo} phase={phase} renderMode={dense ? "dense" : "card"} />
     </article>
   );
 }
@@ -376,19 +376,7 @@ function DemoModal({
         style={{ "--demo-accent": accents[demo.accent] } as CSSProperties}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="demo-modal__header">
-          <div className="demo-modal__copy">
-            <span>{demo.section.toUpperCase()} / MAXIMIZED</span>
-            <strong>{demo.title}</strong>
-          </div>
-          <div className="demo-modal__actions">
-            <StatusBadge label="AUDIO" value="LIVE" accent={demo.accent} />
-            <button type="button" className="demo-modal__close" onClick={onClose}>
-              CLOSE
-            </button>
-          </div>
-        </div>
-        <InteractiveViewport demo={demo} phase={phase} renderMode="max" />
+        <InteractiveViewport key={`${demo.id}-max`} demo={demo} phase={phase} renderMode="max" />
       </div>
     </div>
   );
@@ -396,7 +384,7 @@ function DemoModal({
 
 export default function App() {
   const [phase, setPhase] = useState(0);
-  const [view, setView] = useState<ViewId>("overview");
+  const [view, setView] = useState<ViewId>("all");
   const [selectedId, setSelectedId] = useState(demos[0]?.id ?? "");
   const [maximizedId, setMaximizedId] = useState<string | null>(null);
   const [volume, setVolume] = useState(() => {
@@ -432,16 +420,29 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [maximizedId]);
 
-  const selectedDemo = demos.find((demo) => demo.id === selectedId) ?? demos[0];
-  const maximizedDemo = demos.find((demo) => demo.id === maximizedId) ?? null;
   const visibleDemos = view === "all" ? demos : demos.filter((demo) => demo.section === view);
-  const compactView = view === "all";
+  const selectedDemo =
+    visibleDemos.find((demo) => demo.id === selectedId) ??
+    demos.find((demo) => demo.id === selectedId) ??
+    visibleDemos[0] ??
+    demos[0];
+  const maximizedDemo = demos.find((demo) => demo.id === maximizedId) ?? null;
+  const denseView = view === "all";
 
-  const openDemo = (demo: DemoDefinition) => {
-    startTransition(() => {
-      setSelectedId(demo.id);
-      setMaximizedId(demo.id);
-    });
+  useEffect(() => {
+    if (visibleDemos.some((demo) => demo.id === selectedId)) {
+      return;
+    }
+    setSelectedId(visibleDemos[0]?.id ?? demos[0]?.id ?? "");
+  }, [selectedId, visibleDemos]);
+
+  const openDemo = (id: string) => {
+    const demo = demos.find((entry) => entry.id === id);
+    if (!demo) {
+      return;
+    }
+    setSelectedId(id);
+    setMaximizedId(id);
     audio.play(demo.accent);
   };
 
@@ -450,9 +451,7 @@ export default function App() {
       ? "dashboard-grid dashboard-grid--hero"
       : view === "three"
         ? "dashboard-grid dashboard-grid--three"
-        : view === "all"
-          ? "dashboard-grid dashboard-grid--all"
-          : "dashboard-grid";
+        : "dashboard-grid";
 
   return (
     <div
@@ -462,34 +461,6 @@ export default function App() {
       }}
     >
       <div className="app-shell__backdrop" />
-      <header className="app-header">
-        <div className="app-header__copy">
-          <span>NEON EXODUS SYSTEM SHOWCASE</span>
-          <strong>webTUI / INTERACTIVE DEMO DECK / REACT / THREE</strong>
-        </div>
-        <div className="app-header__actions">
-          <PillRow>
-            <StatusBadge label="BUILD" value="ACTIVE" accent="phosphor" />
-            <StatusBadge label="MODE" value={maximizedDemo ? "FOCUS" : "INTERACTIVE"} accent="signal" />
-            <StatusBadge label="VIEW" value={viewMeta[view].label.toUpperCase()} accent="amber" />
-            <StatusBadge label="SELECTED" value={(selectedDemo?.badge ?? "NONE").toUpperCase()} accent={selectedDemo?.accent ?? "violet"} />
-          </PillRow>
-          <label className="volume-control">
-            <span>Volume</span>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={Math.round(volume * 100)}
-              onChange={(event) => {
-                setVolume(Number(event.target.value) / 100);
-              }}
-            />
-            <strong>{Math.round(volume * 100)}%</strong>
-          </label>
-        </div>
-      </header>
-
       <main className="app-main">
         {view === "overview" ? <HeroBanner phase={phase} /> : null}
 
@@ -502,7 +473,7 @@ export default function App() {
                   type="button"
                   className={`view-tabs__button ${view === id ? "view-tabs__button--active" : ""}`}
                   onClick={() => {
-                    startTransition(() => setView(id));
+                    setView(id);
                   }}
                 >
                   {viewMeta[id].label}
@@ -511,7 +482,19 @@ export default function App() {
             </div>
             <div className="view-deck__status">
               <strong>{selectedDemo?.title ?? "No Selection"}</strong>
-              <span>Click any widget to select. Double-click or use MAX to expand with audio.</span>
+              <label className="volume-control">
+            <span>Volume</span>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={Math.round(volume * 100)}
+              onChange={(event) => {
+                setVolume(Number(event.target.value) / 100);
+              }}
+            />
+            <strong>{Math.round(volume * 100)}%</strong>
+          </label>
             </div>
           </div>
 
@@ -524,9 +507,9 @@ export default function App() {
                 demo={demo}
                 phase={phase}
                 selected={selectedId === demo.id}
-                compact={compactView}
+                dense={denseView}
                 onSelect={(id) => {
-                  startTransition(() => setSelectedId(id));
+                  setSelectedId(id);
                 }}
                 onMaximize={openDemo}
               />
@@ -535,7 +518,7 @@ export default function App() {
         </section>
       </main>
 
-      {maximizedDemo ? <DemoModal demo={maximizedDemo} phase={phase} onClose={() => setMaximizedId(null)} /> : null}
+      {maximizedDemo ? <DemoModal key={maximizedDemo.id} demo={maximizedDemo} phase={phase} onClose={() => setMaximizedId(null)} /> : null}
     </div>
   );
 }

@@ -1,3 +1,15 @@
+@font-face {
+  font-family: "HeavyData";
+  src: url("/fonts/HeavyDataNerdFont-Regular.ttf") format("truetype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gohu";
+  src: url("/fonts/GohuFont14NerdFontMono-Regular.ttf") format("truetype");
+  font-display: swap;
+}
+
 :root {
   --void: #05070d;
   --void-soft: #0a1020;
@@ -9,8 +21,8 @@
   --violet: #b17cff;
   --line: rgba(255, 255, 255, 0.11);
   --panel-bg: rgba(7, 10, 18, 0.92);
-  --font-display: "Bahnschrift Condensed", "Franklin Gothic Demi Cond", "Arial Narrow", sans-serif;
-  --font-mono: "IBM Plex Mono", "Cascadia Mono", "SFMono-Regular", monospace;
+  --font-display: "HeavyData", "Bahnschrift Condensed", "Franklin Gothic Demi Cond", "Arial Narrow", sans-serif;
+  --font-mono: "Gohu", "IBM Plex Mono", "Cascadia Mono", "SFMono-Regular", monospace;
 }
 
 * {
@@ -20,6 +32,7 @@
 html,
 body,
 #root {
+  height: 100%;
   min-height: 100%;
   margin: 0;
 }
@@ -31,6 +44,14 @@ body {
     linear-gradient(135deg, #02040a 0%, #07101d 42%, #04060d 100%);
   color: var(--paper);
   font-family: var(--font-mono);
+  overflow: hidden;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
 }
 
 body::before {
@@ -46,8 +67,12 @@ body::before {
 }
 
 .app-shell {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  height: 100vh;
   position: relative;
   padding: 0.95rem;
+  overflow: hidden;
 }
 
 .app-shell__backdrop {
@@ -103,11 +128,19 @@ body::before {
 .app-main {
   display: grid;
   gap: 0.8rem;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(91, 176, 255, 0.45) transparent;
 }
 
 .view-deck {
   display: grid;
   gap: 0.55rem;
+  align-content: start;
+  min-height: 0;
 }
 
 .view-deck__toolbar {
@@ -239,6 +272,7 @@ body::before {
   display: grid;
   gap: 1rem;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  align-items: start;
 }
 
 .dashboard-grid--hero {
@@ -249,15 +283,10 @@ body::before {
   grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
 }
 
-.dashboard-grid--all {
-  gap: clamp(0.16rem, 0.22vw, 0.32rem);
-  grid-auto-flow: dense;
-  grid-template-columns: repeat(auto-fit, minmax(clamp(232px, 15.2vw, 330px), 1fr));
-  align-items: stretch;
-}
-
 .demo-shell {
   position: relative;
+  min-width: 0;
+  align-self: start;
   transition: transform 140ms ease, filter 140ms ease;
 }
 
@@ -304,8 +333,7 @@ body::before {
   text-transform: uppercase;
 }
 
-.demo-shell__button,
-.demo-modal__close {
+.demo-shell__button {
   padding: 0.34rem 0.56rem;
   border: 1px solid color-mix(in srgb, var(--demo-accent) 58%, transparent);
   background: color-mix(in srgb, var(--demo-accent) 14%, rgba(5, 7, 13, 0.82));
@@ -321,40 +349,39 @@ body::before {
   height: 100%;
 }
 
+.demo-viewport .panel__body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .demo-shell--compact .panel {
   height: 100%;
   min-height: 0;
 }
 
-.demo-shell--compact .panel__header {
-  padding-top: 0.5rem;
-}
-
-.demo-shell--compact .panel__title {
-  font-size: 0.9rem;
-}
-
-.demo-shell--compact .panel__subtitle,
-.demo-shell--compact .panel__code {
-  font-size: 0.64rem;
-}
-
-.demo-shell--compact .panel__body {
-  padding: 0.65rem 0.75rem 0.75rem;
+.demo-shell--dense .panel {
+  height: 100%;
+  min-height: 0;
 }
 
 .demo-shell--compact .panel__body,
-.demo-viewport--max .panel__body {
+.demo-viewport--max .panel__body,
+.panel--compact .panel__body,
+.panel--max .panel__body {
   min-height: 0;
 }
 
 .demo-shell--compact .panel__body > *,
-.demo-viewport--max .panel__body > * {
+.demo-viewport--max .panel__body > *,
+.panel--compact .panel__body > *,
+.panel--max .panel__body > * {
   flex: 1;
   min-height: 0;
 }
 
-.demo-shell--compact .chart-svg {
+.demo-shell--compact .chart-svg,
+.demo-viewport--max .chart-svg {
   display: block;
   flex: 1;
   min-height: 0;
@@ -363,7 +390,10 @@ body::before {
 
 .demo-shell--compact .three-widget,
 .demo-shell--compact .three-widget__canvas,
-.demo-shell--compact .three-widget__canvas canvas {
+.demo-shell--compact .three-widget__canvas canvas,
+.demo-viewport--max .three-widget,
+.demo-viewport--max .three-widget__canvas,
+.demo-viewport--max .three-widget__canvas canvas {
   min-height: 0;
   height: 100%;
 }
@@ -385,21 +415,85 @@ body::before {
   height: 100%;
 }
 
-.dashboard-grid--all .demo-shell {
-  aspect-ratio: 1.88 / 1;
+.demo-shell--dense {
   min-width: 0;
 }
 
-.dashboard-grid--all .demo-viewport,
-.dashboard-grid--all .panel {
+.demo-viewport--max .warning-stack,
+.demo-viewport--max .counter-grid,
+.demo-viewport--max .profile-card,
+.demo-viewport--max .channel-matrix,
+.demo-viewport--max .meter-wall,
+.demo-viewport--max .route-board,
+.demo-viewport--max .gate-grid,
+.demo-viewport--max .component-index {
   height: 100%;
 }
 
-.dashboard-grid--all .panel__body {
+.demo-viewport--max .warning-stack,
+.demo-viewport--max .counter-grid {
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+}
+
+.demo-viewport--max .profile-card {
+  align-items: stretch;
+}
+
+.demo-viewport--max .profile-card__meta {
+  height: 100%;
+  grid-template-rows: repeat(4, minmax(0, 1fr));
+}
+
+.demo-viewport--max .profile-card__row {
+  min-height: 0;
+}
+
+.demo-viewport--max .channel-matrix,
+.demo-viewport--max .component-index {
+  grid-auto-rows: minmax(0, 1fr);
+}
+
+.demo-viewport--max .meter-wall__bar {
+  height: 100%;
+  grid-template-rows: auto 1fr;
+}
+
+.demo-viewport--max .meter-wall__track {
+  height: 100%;
+  min-height: 0;
+}
+
+.demo-viewport--max .route-board {
+  grid-template-rows: repeat(6, minmax(0, 1fr));
+}
+
+.demo-viewport--max .route-board__row {
+  align-self: stretch;
+}
+
+.demo-viewport--max .route-board__cell {
+  min-height: 0;
+  height: 100%;
+}
+
+.demo-viewport--max .gate-grid {
+  align-items: stretch;
+}
+
+.demo-viewport--max .gate-card {
+  height: 100%;
+  min-height: 0;
+  grid-template-rows: 1fr auto;
+}
+
+.demo-viewport--max .component-index {
+  gap: 0.18rem;
+}
+
+.demo-viewport--max .component-index__item {
   display: flex;
-  flex-direction: column;
-  justify-content: stretch;
-  overflow: hidden;
+  align-items: center;
+  min-height: 0;
 }
 
 .demo-modal-backdrop {
@@ -417,13 +511,12 @@ body::before {
   width: min(99.2vw, 4000px);
   height: min(98.6vh, 2200px);
   max-height: 98.6vh;
-  display: grid;
-  grid-template-rows: auto 1fr;
-  gap: 0.5rem;
-  padding: 0.7rem 0.85rem 0.85rem;
+  display: block;
+  padding: 0.45rem;
   border: 1px solid rgba(125, 255, 186, 0.32);
   background: linear-gradient(135deg, rgba(7, 10, 18, 0.98), rgba(10, 16, 32, 0.94));
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.52);
+  overflow: hidden;
 }
 
 .demo-modal__header {
@@ -562,6 +655,32 @@ body::before {
   padding: 0.9rem 1rem 0;
 }
 
+.panel__header--compact {
+  padding: 0.38rem 0.62rem 0.2rem;
+  overflow: hidden;
+}
+
+.panel__marquee {
+  overflow: hidden;
+  white-space: nowrap;
+  mask: linear-gradient(90deg, transparent, black 5%, black 95%, transparent);
+}
+
+.panel__marquee-track {
+  display: inline-block;
+  width: max-content;
+  color: var(--accent-color, var(--amber));
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  will-change: transform;
+  animation: panel-marquee 22s linear infinite;
+}
+
+.panel__marquee:hover .panel__marquee-track {
+  animation-play-state: paused;
+}
+
 .panel__title {
   font-family: var(--font-display);
   font-size: 1rem;
@@ -587,6 +706,16 @@ body::before {
   padding: 1rem;
   flex: 1;
   min-height: 0;
+}
+
+.panel--compact .panel__body {
+  padding: 0.48rem 0.58rem 0.62rem;
+}
+
+.panel--max .panel__body {
+  display: flex;
+  flex-direction: column;
+  padding: 0.62rem;
 }
 
 .hero-panel .panel__body {
@@ -735,7 +864,7 @@ body::before {
 .profile-card__portrait {
   position: relative;
   overflow: hidden;
-  min-height: 210px;
+  min-height: clamp(180px, 24vh, 280px);
   border: 1px solid rgba(177, 124, 255, 0.42);
   background:
     radial-gradient(circle at 50% 18%, rgba(177, 124, 255, 0.22), transparent 26%),
@@ -789,7 +918,7 @@ body::before {
 .live-feed {
   position: relative;
   overflow: hidden;
-  min-height: 240px;
+  min-height: clamp(190px, 24vh, 320px);
   border: 1px solid rgba(255, 66, 49, 0.34);
   background:
     radial-gradient(circle at 52% 48%, rgba(255, 255, 255, 0.2), transparent 14%),
@@ -911,7 +1040,7 @@ body::before {
   grid-template-columns: repeat(16, minmax(0, 1fr));
   gap: 0.5rem;
   align-items: end;
-  min-height: 240px;
+  min-height: clamp(190px, 22vh, 320px);
 }
 
 .meter-wall__bar {
@@ -945,12 +1074,13 @@ body::before {
 
 .chart-svg {
   width: 100%;
-  min-height: 220px;
+  min-height: clamp(180px, 24vh, 320px);
+  height: 100%;
 }
 
 .magi-board {
   position: relative;
-  min-height: 250px;
+  min-height: clamp(190px, 24vh, 330px);
 }
 
 .magi-board__tile,
@@ -1176,7 +1306,7 @@ body::before {
   display: flex;
   flex: 1;
   flex-direction: column;
-  min-height: 300px;
+  min-height: clamp(220px, 28vh, 420px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   background:
     radial-gradient(circle at center, rgba(91, 176, 255, 0.12), transparent 44%),
@@ -1210,6 +1340,16 @@ body::before {
   height: 100%;
 }
 
+@keyframes panel-marquee {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+
+  to {
+    transform: translate3d(-33.333%, 0, 0);
+  }
+}
+
 @media (max-width: 900px) {
   .app-header {
     position: static;
@@ -1235,8 +1375,8 @@ body::before {
   }
 
   .volume-control {
-    grid-template-columns: 1fr;
-    justify-items: start;
+    width: 100%;
+    grid-template-columns: auto minmax(120px, 1fr) auto;
   }
 
   .profile-card {
@@ -1259,10 +1399,6 @@ body::before {
 }
 
 @media (min-width: 2800px) and (min-height: 1500px) {
-  .dashboard-grid--all {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-  }
-
   .demo-shell--compact .panel {
     min-height: 170px;
   }

@@ -345,7 +345,7 @@ function seriesValue(index: number, phase: number, frequency: number, amplitude:
 }
 
 export function barChart(width: number, height: number, phase: number) {
-  const columns = Math.max(8, Math.floor(width / 2));
+  const columns = Math.max(8, width);
   const matrix = createMatrix(columns, height, " ");
   range(columns).forEach((column) => {
     const value = seriesValue(column, phase + column, 0.34, 0.54, 0.5);

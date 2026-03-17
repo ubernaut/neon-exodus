@@ -2,7 +2,7 @@
   "name": "webtui-neon-exodus",
   "version": "1.0.0",
   "private": true,
-  "description": "Neon Exodus webTUI showcase built with Vite, React, and Three.js",
+  "description": "Neon Exodus showcase built with Vite, React, and Three.js",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

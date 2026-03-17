@@ -20,6 +20,8 @@ export type DemoSignal = {
   pressed: boolean;
 };
 
+export type DemoRenderMode = "card" | "compact" | "dense" | "max";
+
 const defaultDemoSignal: DemoSignal = {
   x: 0.5,
   y: 0.5,
@@ -32,6 +34,7 @@ const defaultDemoSignal: DemoSignal = {
 };
 
 const DemoSignalContext = createContext<DemoSignal>(defaultDemoSignal);
+const DemoRenderModeContext = createContext<DemoRenderMode>("card");
 
 export function DemoSignalProvider({
   signal,
@@ -44,6 +47,33 @@ export function useDemoSignal() {
   return useContext(DemoSignalContext);
 }
 
+export function DemoRenderModeProvider({
+  mode,
+  children,
+}: PropsWithChildren<{ mode: DemoRenderMode }>) {
+  return <DemoRenderModeContext.Provider value={mode}>{children}</DemoRenderModeContext.Provider>;
+}
+
+export function useDemoRenderMode() {
+  return useContext(DemoRenderModeContext);
+}
+
+function normalizeHeaderText(value: string) {
+  return value.replace(/\s+/g, " ").trim().toUpperCase();
+}
+
+function compactHeaderText({
+  title,
+  code,
+  subtitle,
+}: Pick<PanelProps, "title" | "code" | "subtitle">) {
+  const base = [code, title, subtitle]
+    .filter(Boolean)
+    .map((value) => normalizeHeaderText(value!))
+    .join("   /   ");
+  return `${base}   //   ${base}   //   ${base}`;
+}
+
 export function Panel({
   title,
   code,
@@ -52,15 +82,28 @@ export function Panel({
   className,
   children,
 }: PanelProps) {
+  const renderMode = useDemoRenderMode();
+  const isCompact = renderMode === "compact" || renderMode === "dense";
+  const isMax = renderMode === "max";
+  const marqueeText = compactHeaderText({ title, code, subtitle });
+
   return (
-    <section className={`panel ${className ?? ""}`} data-accent={accent}>
-      <div className="panel__header">
-        <div>
-          <div className="panel__title">{title}</div>
-          {subtitle ? <div className="panel__subtitle">{subtitle}</div> : null}
+    <section className={`panel panel--${renderMode} ${className ?? ""}`} data-accent={accent}>
+      {isMax ? null : isCompact ? (
+        <div className="panel__header panel__header--compact" title={normalizeHeaderText(`${code ?? ""} ${title} ${subtitle ?? ""}`)}>
+          <div className="panel__marquee" aria-label={normalizeHeaderText(`${title} ${subtitle ?? ""}`)}>
+            <div className="panel__marquee-track">{marqueeText}</div>
+          </div>
         </div>
-        {code ? <div className="panel__code">{code}</div> : null}
-      </div>
+      ) : (
+        <div className="panel__header">
+          <div>
+            <div className="panel__title">{title}</div>
+            {subtitle ? <div className="panel__subtitle">{subtitle}</div> : null}
+          </div>
+          {code ? <div className="panel__code">{code}</div> : null}
+        </div>
+      )}
       <div className="panel__body">{children}</div>
     </section>
   );
@@ -97,7 +140,7 @@ export function HeroBanner({ phase }: { phase: number }) {
         <div className="hero-banner__grid" />
         <div className="hero-banner__copy">
           <span className="hero-banner__eyebrow">A.T.FIELD GENERATION / TERMINAL DOGMA</span>
-          <h1>NEON EXODUS webTUI</h1>
+          <h1>NEON EXODUS</h1>
           <p>
             Hard warning overlays, tactical scans, signal graphs, decision boards, and embedded
             Three.js instrument volumes.
