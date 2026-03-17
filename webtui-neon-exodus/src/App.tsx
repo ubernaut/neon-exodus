@@ -178,7 +178,16 @@ function useUiAudio(volume: number) {
     return ctx;
   };
 
+  const prime = () => {
+    const ctx = ensureContext();
+    if (!ctx || ctx.state === "running") {
+      return;
+    }
+    void ctx.resume();
+  };
+
   return {
+    prime,
     play(accent: Accent) {
       if (volume <= 0.001) {
         return;
@@ -446,7 +455,12 @@ export default function App() {
           : "dashboard-grid";
 
   return (
-    <div className="app-shell">
+    <div
+      className="app-shell"
+      onPointerDownCapture={() => {
+        audio.prime();
+      }}
+    >
       <div className="app-shell__backdrop" />
       <header className="app-header">
         <div className="app-header__copy">
