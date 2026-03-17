@@ -105,6 +105,20 @@ const demos: DemoDefinition[] = [
   { id: "three-solenoid", title: "Solenoid Field Volume", badge: "COIL", accent: "violet", section: "three", render: (_phase, mode) => <ThreeWidget mode={"solenoid" satisfies WidgetMode} compact={mode === "compact"} /> },
 ];
 
+const tallControlIds = new Set<DemoDefinition["id"]>([
+  "magi-board",
+  "route-board",
+  "gate-status",
+  "tactical-map",
+  "network-topology",
+  "component-index",
+]);
+
+const allViewDemos = [
+  ...demos.filter((demo) => !tallControlIds.has(demo.id)),
+  ...demos.filter((demo) => tallControlIds.has(demo.id)),
+];
+
 const accentAudio: Record<Accent, { base: number; sweep: number; type: OscillatorType; noise: number }> = {
   alarm: { base: 184, sweep: 2.8, type: "sawtooth", noise: 0.08 },
   amber: { base: 260, sweep: 2.4, type: "square", noise: 0.05 },
@@ -420,7 +434,7 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [maximizedId]);
 
-  const visibleDemos = view === "all" ? demos : demos.filter((demo) => demo.section === view);
+  const visibleDemos = view === "all" ? allViewDemos : demos.filter((demo) => demo.section === view);
   const selectedDemo =
     visibleDemos.find((demo) => demo.id === selectedId) ??
     demos.find((demo) => demo.id === selectedId) ??
