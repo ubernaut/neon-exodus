@@ -53,10 +53,12 @@ bun run start
 
 OpenTUI controls:
 
-- `1-4` or `h` / `l` switch sections
-- Arrow keys navigate the 3D widget deck
-- `Enter` or `f` opens the selected 3D widget fullscreen
+- `1-5` or `h` / `l` switch sections, including the full `All` wall
+- Arrow keys move selection through the visible demo grid
+- Mouse hover selects widgets, and double-click or right-click maximizes them
+- `Enter` or `f` opens the selected widget fullscreen with audio
 - `Esc` or `t` returns to the tiled view
+- `+` / `-` adjust volume
 - `q` exits
 
 ## Building

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import {
   AmbientLight,
   BoxGeometry,
@@ -21,7 +21,7 @@ import {
   Vector3,
   WebGLRenderer,
 } from "three";
-import { Panel } from "./components";
+import { Panel, useDemoSignal } from "./components";
 import { palette, type WidgetMode } from "./theme";
 
 function neonLine(color: string) {
@@ -94,19 +94,32 @@ function buildScene(mode: WidgetMode) {
   scene.add(light);
   scene.add(group);
 
-  const tick = (time: number) => {
+  const tickBase = (time: number) => {
     group.rotation.y = time * 0.00018;
     group.rotation.x = Math.sin(time * 0.00013) * 0.24;
   };
 
   switch (mode) {
     case "lattice": {
-      [1.1, 1.7, 2.3].forEach((size, index) => {
+      const wires = [1.1, 1.7, 2.3].map((size, index) => {
         const wire = addBoxWire(group, size, index === 1 ? palette.phosphor : palette.signal);
         wire.rotation.x = index * 0.4;
         wire.rotation.y = index * 0.5;
+        return wire;
       });
-      break;
+      return {
+        scene,
+        camera,
+        tick: (time: number, signal: { depth: number; twist: number; lift: number; pulse: number }) => {
+          tickBase(time);
+          wires.forEach((wire, index) => {
+            const factor = 1 + signal.depth * 0.18 * ((index + 1) / wires.length);
+            wire.scale.setScalar(factor);
+            wire.rotation.z = signal.twist * 0.4 * (index + 1);
+            wire.position.y = signal.lift * 0.16 * (index - 1);
+          });
+        },
+      };
     }
     case "atfield": {
       const rings = [0.8, 1.25, 1.7].map((radius, index) => {
@@ -129,12 +142,16 @@ function buildScene(mode: WidgetMode) {
       return {
         scene,
         camera,
-        tick: (time: number) => {
-          tick(time);
+        tick: (time: number, signal: { depth: number; twist: number; lift: number; pulse: number }) => {
+          tickBase(time);
           rings.forEach((ring, index) => {
-            ring.rotation.z = time * 0.0004 * (index + 1);
+            const scale = 1 + signal.depth * 0.14 * (index + 1);
+            ring.scale.setScalar(scale);
+            ring.rotation.z = time * 0.0004 * (index + 1) + signal.twist * 0.6 * (index + 1);
           });
-          cross.rotation.y = time * 0.0009;
+          cross.rotation.y = time * 0.0009 + signal.twist * 0.9;
+          cross.scale.setScalar(1 + signal.pulse * 0.12);
+          cross.position.y = signal.lift * 0.25;
         },
       };
     }
@@ -143,9 +160,21 @@ function buildScene(mode: WidgetMode) {
         new EdgesGeometry(new IcosahedronGeometry(1.65, 0)),
         neonLine(palette.phosphor),
       );
+      const shellPoints = createPointsShell();
       group.add(mesh);
-      group.add(createPointsShell());
-      break;
+      group.add(shellPoints);
+      return {
+        scene,
+        camera,
+        tick: (time: number, signal: { depth: number; twist: number; lift: number; pulse: number }) => {
+          tickBase(time);
+          mesh.rotation.z = signal.twist * 0.9;
+          mesh.scale.setScalar(1 + signal.depth * 0.16);
+          shellPoints.rotation.y = time * 0.0006 + signal.twist * 0.8;
+          shellPoints.rotation.x = signal.lift * 0.7;
+          shellPoints.position.y = signal.lift * 0.2;
+        },
+      };
     }
     case "capture": {
       const outer = addBoxWire(group, 2.2, palette.amber);
@@ -156,18 +185,32 @@ function buildScene(mode: WidgetMode) {
       return {
         scene,
         camera,
-        tick: (time: number) => {
-          tick(time);
-          outer.rotation.z = time * 0.0004;
-          inner.rotation.x = time * 0.0007;
-          helix.rotation.y = time * 0.0008;
+        tick: (time: number, signal: { depth: number; twist: number; lift: number; pulse: number }) => {
+          tickBase(time);
+          outer.rotation.z = time * 0.0004 + signal.twist * 0.8;
+          inner.rotation.x = time * 0.0007 - signal.lift * 0.8;
+          outer.scale.setScalar(1 + signal.depth * 0.16);
+          inner.scale.setScalar(1 + signal.pulse * 0.18);
+          helix.rotation.y = time * 0.0008 + signal.twist * 0.8;
+          helix.position.y = signal.lift * 0.26;
         },
       };
     }
     case "mapslab": {
-      group.add(createMapSlabMesh());
+      const slab = createMapSlabMesh();
+      group.add(slab);
       group.position.y = -0.1;
-      break;
+      return {
+        scene,
+        camera,
+        tick: (time: number, signal: { depth: number; twist: number; lift: number; pulse: number }) => {
+          tickBase(time);
+          slab.rotation.z = 0.4 + signal.twist * 0.22;
+          slab.rotation.x = -0.85 + signal.lift * 0.12;
+          slab.scale.set(1 + signal.depth * 0.22, 1 + signal.depth * 0.12, 1);
+          slab.position.z = signal.pulse * 0.16;
+        },
+      };
     }
     case "solenoid": {
       const helixA = createHelix(palette.phosphor, 0.78, 4.5, 3.2);
@@ -177,23 +220,33 @@ function buildScene(mode: WidgetMode) {
       return {
         scene,
         camera,
-        tick: (time: number) => {
-          tick(time);
-          helixA.rotation.y = time * 0.0009;
-          helixB.rotation.x = time * 0.0007;
+        tick: (time: number, signal: { depth: number; twist: number; lift: number; pulse: number }) => {
+          tickBase(time);
+          helixA.rotation.y = time * 0.0009 + signal.twist;
+          helixB.rotation.x = time * 0.0007 - signal.lift;
+          helixA.scale.setScalar(1 + signal.depth * 0.12);
+          helixB.scale.setScalar(1 + signal.pulse * 0.18);
+          helixA.position.x = signal.twist * -0.35;
+          helixB.position.x = signal.twist * 0.35;
         },
       };
     }
   }
 
-  return { scene, camera, tick };
+  return { scene, camera, tick: tickBase };
 }
 
 function ThreeCanvas({ mode }: { mode: WidgetMode }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
+  const signal = useDemoSignal();
+  const signalRef = useRef(signal);
   const sceneBundle = useMemo(() => buildScene(mode), [mode]);
 
   useEffect(() => {
+    signalRef.current = signal;
+  }, [signal]);
+
+  useLayoutEffect(() => {
     const host = hostRef.current;
     if (!host) {
       return undefined;
@@ -204,24 +257,46 @@ function ThreeCanvas({ mode }: { mode: WidgetMode }) {
     renderer.setClearColor(0x000000, 0);
     host.appendChild(renderer.domElement);
 
+    let lastWidth = 0;
+    let lastHeight = 0;
+    let lastPixelRatio = 0;
+
     const resize = () => {
-      const width = Math.max(host.clientWidth, 10);
-      const height = Math.max(host.clientHeight, 10);
+      const width = Math.max(Math.round(host.clientWidth), 10);
+      const height = Math.max(Math.round(host.clientHeight), 10);
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+      if (width === lastWidth && height === lastHeight && pixelRatio === lastPixelRatio) {
+        return;
+      }
+      lastWidth = width;
+      lastHeight = height;
+      lastPixelRatio = pixelRatio;
+      renderer.setPixelRatio(pixelRatio);
       renderer.setSize(width, height, false);
       sceneBundle.camera.aspect = width / height;
       sceneBundle.camera.updateProjectionMatrix();
     };
 
     resize();
-    const observer = new ResizeObserver(resize);
+    const scheduleResize = () => {
+      window.requestAnimationFrame(resize);
+    };
+    const observer = new ResizeObserver(scheduleResize);
     observer.observe(host);
+    if (host.parentElement) {
+      observer.observe(host.parentElement);
+    }
+    window.addEventListener("resize", scheduleResize);
 
     let frame = 0;
     let raf = 0;
     const render = () => {
       frame += 1;
       if (frame % 2 === 0) {
-        sceneBundle.tick(performance.now());
+        sceneBundle.tick(performance.now(), signalRef.current);
+      }
+      if (frame % 20 === 0) {
+        resize();
       }
       renderer.render(sceneBundle.scene, sceneBundle.camera);
       raf = window.requestAnimationFrame(render);
@@ -231,6 +306,7 @@ function ThreeCanvas({ mode }: { mode: WidgetMode }) {
 
     return () => {
       observer.disconnect();
+      window.removeEventListener("resize", scheduleResize);
       window.cancelAnimationFrame(raf);
       renderer.dispose();
       host.removeChild(renderer.domElement);
@@ -273,13 +349,17 @@ const widgetMeta: Record<WidgetMode, { title: string; subtitle: string; accent: 
   },
 };
 
-export function ThreeWidget({ mode }: { mode: WidgetMode }) {
+export function ThreeWidget({ mode, compact = false }: { mode: WidgetMode; compact?: boolean }) {
   const meta = widgetMeta[mode];
+  const signal = useDemoSignal();
   return (
     <Panel title={meta.title} subtitle={meta.subtitle} code="THREE-CLI / WEBGL" accent={meta.accent}>
-      <div className="three-widget">
+      <div
+        className={`three-widget ${compact ? "three-widget--compact" : ""}`}
+        style={{ transform: `translate3d(${signal.twist * 8}px, ${signal.lift * -6}px, 0)` }}
+      >
         <div className="three-widget__hud">
-          <span>NEON VOLUME</span>
+          <span>{signal.active ? "VECTOR DRIVE" : "NEON VOLUME"}</span>
           <span>{mode.toUpperCase()}</span>
         </div>
         <ThreeCanvas mode={mode} />

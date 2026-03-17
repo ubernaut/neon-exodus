@@ -1,26 +1,45 @@
-import { startTransition, useEffect, useMemo, useState, type ReactNode } from "react";
-import { useKeyboard } from "@opentui/react";
+import {
+  createContext,
+  startTransition,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Ref,
+  type ReactNode,
+} from "react";
+import type { BoxRenderable, MouseEvent as OpenMouseEvent } from "@opentui/core";
 import { ThreeSceneView } from "./three";
 import {
   barChart,
   channelMatrix,
   circularField,
-  componentIndex,
+  clamp,
   colors,
+  componentIndex,
+  demos,
+  demosForSection,
   formatCountdown,
   harmonicField,
   heatmap,
+  idleSignal,
   liveFeed,
   networkTopology,
   psychographChart,
   routeBoard,
+  sections,
   showcaseDemos,
   signalChart,
   tacticalMap,
+  widgetSubtitle,
+  widgetTitle,
   type Accent,
+  type DemoMeta,
+  type DemoSignal,
+  type RenderMode,
   type SectionId,
   type WidgetMode,
-  widgetModes,
 } from "./theme";
 
 export function useTicker(interval = 120) {
@@ -38,396 +57,35 @@ export function useTicker(interval = 120) {
   return phase;
 }
 
+const DemoSignalContext = createContext<DemoSignal>(idleSignal);
+
+export function DemoSignalProvider({
+  signal,
+  children,
+}: {
+  signal: DemoSignal;
+  children: ReactNode;
+}) {
+  return <DemoSignalContext.Provider value={signal}>{children}</DemoSignalContext.Provider>;
+}
+
+export function useDemoSignal() {
+  return useContext(DemoSignalContext);
+}
+
 function accentColor(accent: Accent) {
   return colors[accent];
 }
 
-export function NeonPanel({
-  title,
-  code,
-  accent = "amber",
-  subtitle,
-  width = "49%",
-  minHeight = 10,
-  borderStyle,
-  borderColor,
-  backgroundColor,
-  children,
-}: {
-  title: string;
-  code?: string;
-  accent?: Accent;
-  subtitle?: string;
-  width?: number | `${number}%`;
-  minHeight?: number;
-  borderStyle?: "single" | "double" | "heavy";
-  borderColor?: string;
-  backgroundColor?: string;
-  children: ReactNode;
-}) {
-  const accentFg = accentColor(accent);
-  return (
-    <box
-      width={width}
-      minHeight={minHeight}
-      border
-      borderStyle={borderStyle ?? "double"}
-      borderColor={borderColor ?? accentFg}
-      backgroundColor={backgroundColor ?? colors.panel}
-      padding={1}
-      flexDirection="column"
-    >
-      <text fg={colors.paper}>
-        <span fg={accentFg}>[{code ?? "NEON"}]</span>
-        <strong> {title.toUpperCase()}</strong>
-      </text>
-      {subtitle ? (
-        <text fg={colors.dim}>
-          <span>{subtitle.toUpperCase()}</span>
-        </text>
-      ) : null}
-      <box minHeight={1} />
-      {children}
-    </box>
-  );
+function volumeBar(volume: number) {
+  const units = 10;
+  const filled = Math.round((clamp(volume, 0, 100) / 100) * units);
+  return `${"█".repeat(filled)}${"░".repeat(units - filled)}`;
 }
-
-function ThreeInset({
-  mode,
-  height,
-  accent,
-  caption,
-}: {
-  mode: WidgetMode;
-  height: number;
-  accent: string;
-  caption: string;
-}) {
-  return (
-    <box flexDirection="column" gap={1}>
-      <text fg={accent}>
-        <strong>{caption.toUpperCase()}</strong>
-      </text>
-      <ThreeSceneView mode={mode} height={height} />
-    </box>
-  );
-}
-
-export function AppHeader({
-  section,
-  phase,
-  compact,
-}: {
-  section: SectionId;
-  phase: number;
-  compact: boolean;
-}) {
-  return (
-    <box
-      border
-      borderStyle={compact ? "single" : "heavy"}
-      borderColor={section === "three" ? colors.phosphor : colors.alarm}
-      backgroundColor={colors.void}
-      paddingX={1}
-      flexDirection="column"
-    >
-      <text fg={section === "three" ? colors.phosphor : colors.amber}>
-        <strong>NEON EXODUS OPENTUI</strong>
-        <span fg={colors.paper}> / {section.toUpperCase()} / {formatCountdown(phase)}</span>
-      </text>
-      <text fg={colors.dim}>
-        {section === "three" ? (
-          <>
-            <span fg={colors.signal}>ARROWS</span> MOVE  /  <span fg={colors.signal}>ENTER,F</span> FULL  /  <span fg={colors.signal}>ESC,T</span> GRID  /  <span fg={colors.phosphor}>1-4,H/L</span> SECTIONS  /  <span fg={colors.alarm}>Q</span> EXIT
-          </>
-        ) : (
-          <>
-            <span fg={colors.phosphor}>UP/DOWN</span> SCROLL  /  <span fg={colors.phosphor}>LEFT/RIGHT,H/L</span> SECTIONS  /  <span fg={colors.alarm}>Q</span> EXIT
-          </>
-        )}
-      </text>
-    </box>
-  );
-}
-
-export function Tabs({
-  section,
-  onChange,
-  compact,
-}: {
-  section: SectionId;
-  onChange: (section: SectionId) => void;
-  compact: boolean;
-}) {
-  const order: SectionId[] = ["overview", "signals", "control", "three"];
-  useKeyboard((key) => {
-    if (key.name === "q") {
-      process.exit(0);
-    }
-    if (key.name === "h" || (section !== "three" && key.name === "left")) {
-      const current = order.indexOf(section);
-      onChange(order[(current - 1 + order.length) % order.length] ?? section);
-    }
-    if (key.name === "l" || (section !== "three" && key.name === "right")) {
-      const current = order.indexOf(section);
-      onChange(order[(current + 1) % order.length] ?? section);
-    }
-    if (key.sequence === "1") onChange("overview");
-    if (key.sequence === "2") onChange("signals");
-    if (key.sequence === "3") onChange("control");
-    if (key.sequence === "4") onChange("three");
-  });
-
-  const labels: Record<SectionId, string> = compact
-    ? { overview: "OVR", signals: "SIG", control: "CTL", three: "3D" }
-    : { overview: "OVERVIEW", signals: "SIGNALS", control: "CONTROL", three: "THREE" };
-
-  return (
-    <text fg={colors.dim}>
-      {order.map((id, index) => {
-        const active = id === section;
-        const prefix = index === 0 ? "" : "  ";
-        const content = `${index + 1} ${labels[id]}`;
-        return (
-          <span key={id} fg={active ? colors.paper : colors.dim}>
-            {prefix}
-            {active ? <strong>[{content}]</strong> : content}
-          </span>
-        );
-      })}
-    </text>
-  );
-}
-
-export function OverviewPanels({ phase, compact }: { phase: number; compact: boolean }) {
-  const cardWidth = compact ? "100%" : "49%";
-  return (
-    <box flexWrap="wrap" gap={1}>
-      <NeonPanel
-        title="Central Dogma Interface"
-        code="MAGI-1/2/3"
-        accent="amber"
-        subtitle="24 showcase demos across four sectors"
-        width="100%"
-        minHeight={8}
-      >
-        <text fg={colors.amber}>
-          <strong>TERMINAL DOGMA / A.T.FIELD GENERATION / NEON EXODUS OPENTUI</strong>
-        </text>
-        <text fg={colors.paper}>
-          Warning stacks, counters, signal systems, control topology, and full OpenTUI Three
-          renderables with web-suite parity.
-        </text>
-        <text fg={colors.dim}>
-          <span fg={colors.signal}>{showcaseDemos.length} LIVE DEMOS</span> / 4 SECTORS / 6 SURFACES EACH / ACTIVE STATE:{" "}
-          <span fg={phase % 8 < 2 ? colors.alarm : colors.phosphor}>{phase % 8 < 2 ? "ALERT" : "NOMINAL"}</span>
-        </text>
-      </NeonPanel>
-
-      <NeonPanel title="Warning Stack" code="ALERT-000" accent="alarm" width={cardWidth} minHeight={10}>
-        <text fg={colors.alarm}>
-          <strong>EMERGENCY</strong>
-        </text>
-        <text fg={colors.paper}>ENTRY PLUG CONNECTION INSTABILITY</text>
-        <text fg={colors.amber}>
-          <strong>A.T.FIELD</strong>
-        </text>
-        <text fg={colors.paper}>GENERATION ABOVE NORMAL LIMIT</text>
-        <text fg={phase % 7 < 3 ? colors.alarm : colors.paper}>
-          <strong>REFUSED</strong> DUMMY PLUG SYNCHRONIZATION REJECTED
-        </text>
-      </NeonPanel>
-
-      <NeonPanel title="Counter And Clock Boards" code="TIME-SEG" accent="signal" width={cardWidth} minHeight={10}>
-        <text fg={colors.signal}>
-          <strong>CLOCK</strong> 14:{String(phase % 60).padStart(2, "0")}:{String((phase * 3) % 60).padStart(2, "0")}
-        </text>
-        <text fg={colors.amber}>
-          <strong>COUNTDOWN</strong> {formatCountdown(phase)}
-        </text>
-        <text fg={phase % 6 < 2 ? colors.alarm : colors.phosphor}>
-          <strong>SYNC</strong> {78 + ((phase * 7) % 19)}.{phase % 10}%
-        </text>
-      </NeonPanel>
-
-      <NeonPanel title="Pilot State Card" code="TEST-PLUG-02" accent="violet" width={cardWidth} minHeight={12}>
-        <text fg={colors.violet}>
-          <strong>SORYU ASUKA LANGLEY</strong>
-        </text>
-        <text fg={colors.signal}>PILOT      00010011</text>
-        <text fg={colors.paper}>SYNC       {phase % 5 < 2 ? "GREEN" : "BLUE"}</text>
-        <text fg={colors.paper}>ENTRY      {phase % 11 < 4 ? "LOCKED" : "LIVE"}</text>
-        <text fg={colors.dim}>[|||||||||||||||] PROFILE OVERLAY / COLOR SEPARATION ACTIVE</text>
-      </NeonPanel>
-
-      <NeonPanel title="Live Feed / Corruption" code="LIVE-07" accent="alarm" width={cardWidth} minHeight={compact ? 12 : 15}>
-        {compact ? (
-          <>
-            <text fg={colors.signal}>{liveFeed(compact ? 34 : 52, 8, phase)}</text>
-            <text fg={colors.alarm}>SUBJECT EVA-02 / COMPARISON LIVE</text>
-          </>
-        ) : (
-          <ThreeInset
-            mode="capture"
-            height={8}
-            accent={colors.alarm}
-            caption="Subject Eva-02 / capture lock / corruption active"
-          />
-        )}
-      </NeonPanel>
-
-      <NeonPanel title="Event Log" code="LOG-223.229" accent="amber" width="100%" minHeight={8}>
-        <text fg={colors.paper}>223229  A.T.FIELD PRODUCTION TRACE PATH LOCKED</text>
-        <text fg={colors.paper}>223246  ENTRY PLUG EVA-01 ROUTE SHIFTED TO ALTERNATE LOOP</text>
-        <text fg={colors.paper}>223263  SYNC HARMONICS GRAPH A+ / WARNING THRESHOLD CROSSED</text>
-        <text fg={colors.phosphor}>223280  MAGI-3 REPORT: UNKNOWN / RECALCULATING</text>
-        <text fg={colors.signal}>223297  TERMINAL DOGMA: CAMERA F-46b LIVE</text>
-      </NeonPanel>
-
-      <NeonPanel title="Channel Matrix" code="MATRIX-C" accent="phosphor" width="100%" minHeight={8}>
-        <text fg={colors.paper}>{channelMatrix(compact ? 38 : 78, phase)}</text>
-      </NeonPanel>
-    </box>
-  );
-}
-
-export function SignalPanels({ phase, compact }: { phase: number; compact: boolean }) {
-  const width = compact ? "100%" : "49%";
-  return (
-    <box flexWrap="wrap" gap={1}>
-      <NeonPanel title="Telemetry Rack" code="LIFE-SUPPORT" accent="alarm" width={width} minHeight={14}>
-        <text fg={colors.phosphor}>{barChart(compact ? 30 : 42, 8, phase)}</text>
-      </NeonPanel>
-      <NeonPanel title="Biosignal Strip" code="WAVE-85" accent="phosphor" width={width} minHeight={14}>
-        <text fg={colors.phosphor}>{signalChart(compact ? 34 : 50, 9, phase)}</text>
-      </NeonPanel>
-      <NeonPanel title="Harmonic Graph" code="SIM-GRAPH A+" accent="violet" width={width} minHeight={14}>
-        <text fg={colors.amber}>{harmonicField(compact ? 34 : 50, 9, phase)}</text>
-      </NeonPanel>
-      <NeonPanel title="Psychograph Display" code="PHASE-4" accent="amber" width={width} minHeight={14}>
-        <text fg={colors.amber}>{psychographChart(compact ? 34 : 50, 9, phase)}</text>
-      </NeonPanel>
-      <NeonPanel title="Field Ring Capture" code="CAPTURE-01" accent="signal" width={width} minHeight={compact ? 14 : 16}>
-        {compact ? (
-          <text fg={colors.signal}>{circularField(compact ? 34 : 50, 9, phase)}</text>
-        ) : (
-          <ThreeInset
-            mode="atfield"
-            height={9}
-            accent={colors.signal}
-            caption="Locking reticle / field concentration / live"
-          />
-        )}
-      </NeonPanel>
-      <NeonPanel title="Hex Heatmap" code="AREA-DENSITY" accent="amber" width={width} minHeight={14}>
-        <text fg={colors.amber}>{heatmap(compact ? 32 : 48, 9, phase)}</text>
-      </NeonPanel>
-    </box>
-  );
-}
-
-export function ControlPanels({ phase, compact }: { phase: number; compact: boolean }) {
-  const width = compact ? "100%" : "49%";
-  const magi = useMemo(
-    () =>
-      [
-        "          ╭──────────── BALTHASAR-2 ────────────╮",
-        "╭──────────── CASPER-3 ───────────╮      MAGI     ",
-        "│                                 ├────╮          ",
-        "│           RESOLVE / UNKNOWN     │    │          ",
-        "╰─────────────────────────────────╯    ├──────────╮",
-        "                                      ╰──────────┤",
-        "                              ╭──────── MELCHIOR-1 ────────╯",
-      ].join("\n"),
-    [],
-  );
-
-  return (
-    <box flexWrap="wrap" gap={1}>
-      <NeonPanel title="MAGI Decision Board" code="CODE-239" accent="amber" width={width} minHeight={12}>
-        <text fg={phase % 6 < 3 ? colors.phosphor : colors.alarm}>{magi}</text>
-      </NeonPanel>
-      <NeonPanel title="Route / Gate Board" code="ENTRY-PLUG" accent="alarm" width={width} minHeight={12}>
-        <text fg={colors.amber}>{routeBoard(compact ? 30 : 44, 8, phase)}</text>
-      </NeonPanel>
-      <NeonPanel title="Tactical Map" code="TOKYO-3 / LIVE" accent="phosphor" width={width} minHeight={compact ? 14 : 16}>
-        {compact ? (
-          <text fg={colors.phosphor}>{tacticalMap(compact ? 34 : 52, 9, phase)}</text>
-        ) : (
-          <ThreeInset
-            mode="mapslab"
-            height={9}
-            accent={colors.phosphor}
-            caption="Topographic sweep / terrain mesh / live"
-          />
-        )}
-      </NeonPanel>
-      <NeonPanel title="Network Topology" code="NERV-TOPOLOGY" accent="amber" width={width} minHeight={compact ? 14 : 16}>
-        {compact ? (
-          <text fg={colors.amber}>{networkTopology(compact ? 34 : 52, 9, phase)}</text>
-        ) : (
-          <ThreeInset
-            mode="lattice"
-            height={9}
-            accent={colors.amber}
-            caption="Localized breaks / mesh redraw / live"
-          />
-        )}
-      </NeonPanel>
-      <NeonPanel title="Infrastructure Gates" code="CL3-SEG" accent="signal" width="100%" minHeight={8}>
-        <text fg={colors.alarm}>LOCKED    WAITING FOR PERMISSION KEY</text>
-        <text fg={colors.phosphor}>OPEN      OUTER AND LOCK GATE IMMEDIATELY</text>
-        <text fg={colors.alarm}>REFUSED   ENTRY PLUG EVA-01 EMERGENCY DIRECTION SYSTEM</text>
-      </NeonPanel>
-      <NeonPanel title="Component Index" code="SUITE-ALL" accent="amber" width="100%" minHeight={12}>
-        <text fg={colors.paper}>{componentIndex(compact ? 38 : 96)}</text>
-      </NeonPanel>
-    </box>
-  );
-}
-
-function widgetTitle(mode: WidgetMode) {
-  switch (mode) {
-    case "lattice":
-      return "Wireframe Lattice Chamber";
-    case "atfield":
-      return "A.T.Field Ring Volume";
-    case "hexshell":
-      return "Hex Cell Shell";
-    case "capture":
-      return "Capture Cage";
-    case "mapslab":
-      return "Volumetric Map Slab";
-    case "solenoid":
-      return "Solenoid Field Volume";
-  }
-}
-
-function widgetSubtitle(mode: WidgetMode) {
-  switch (mode) {
-    case "lattice":
-      return "Nested cubic rails with slow axial drift and pilot-cage geometry.";
-    case "atfield":
-      return "Rotating A.T.Field torus stack wrapped around a violet harmonic spine.";
-    case "hexshell":
-      return "Geodesic shell study for defensive barrier and armor-cell readouts.";
-    case "capture":
-      return "Twin containment cages with a live central helix for lock-state sweeps.";
-    case "mapslab":
-      return "Topographic wire slab for city-grid terrain and underground route plots.";
-    case "solenoid":
-      return "Crossed coils for field compression, inductive resonance, and surge scans.";
-  }
-}
-
-function widgetHotkey(index: number) {
-  return ["5", "6", "7", "8", "9", "0"][index] ?? "?";
-}
-
-type ThreeLayout = "grid" | "focus";
 
 function tileWidth(columns: number) {
-  if (columns >= 3) return "32%";
+  if (columns >= 4) return "24%";
+  if (columns === 3) return "32%";
   if (columns === 2) return "49%";
   return "100%";
 }
@@ -440,20 +98,7 @@ function chunkItems<T>(items: T[], columns: number) {
   return rows;
 }
 
-function tileSceneHeight(columns: number, viewportHeight: number) {
-  if (columns === 1) {
-    return Math.max(8, Math.min(12, viewportHeight - 10));
-  }
-  const candidate = Math.floor((viewportHeight - 8) / 2) - 2;
-  return Math.max(columns >= 3 ? 4 : 6, Math.min(columns >= 3 ? 8 : 10, candidate));
-}
-
-function focusSceneHeight(viewportHeight: number, compact: boolean) {
-  const reserved = compact ? 10 : 12;
-  return Math.max(10, viewportHeight - reserved);
-}
-
-function moveGridSelection(current: number, keyName: string, columns: number, total: number) {
+export function moveGridSelection(current: number, keyName: string, columns: number, total: number) {
   const row = Math.floor(current / columns);
   const column = current % columns;
   const lastIndex = total - 1;
@@ -478,165 +123,775 @@ function moveGridSelection(current: number, keyName: string, columns: number, to
   return current;
 }
 
-export function ThreePanels({
+function buildMouseSignal(
+  event: OpenMouseEvent,
+  renderable: BoxRenderable,
+  pressed: boolean,
+): DemoSignal {
+  const x = clamp((event.x - renderable.x) / Math.max(renderable.width - 1, 1), 0, 1);
+  const y = clamp((event.y - renderable.y) / Math.max(renderable.height - 1, 1), 0, 1);
+  const dx = x - 0.5;
+  const dy = y - 0.5;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+  const depth = clamp(1 - distance * 1.65, 0.12, 0.96);
+
+  return {
+    x,
+    y,
+    depth,
+    twist: dx * 2,
+    lift: -dy * 2,
+    pulse: clamp(depth + (pressed ? 0.2 : 0), 0.12, 1),
+    active: true,
+    pressed,
+  };
+}
+
+export function NeonPanel({
+  title,
+  code,
+  accent = "amber",
+  subtitle,
+  width = "49%",
+  minHeight = 10,
+  borderStyle,
+  borderColor,
+  backgroundColor,
+  panelRef,
+  onMouseDown,
+  onMouseUp,
+  onMouseMove,
+  onMouseDrag,
+  onMouseOver,
+  onMouseOut,
+  children,
+}: {
+  title: string;
+  code?: string;
+  accent?: Accent;
+  subtitle?: string;
+  width?: number | `${number}%`;
+  minHeight?: number;
+  borderStyle?: "single" | "double" | "heavy";
+  borderColor?: string;
+  backgroundColor?: string;
+  panelRef?: Ref<BoxRenderable>;
+  onMouseDown?: (event: OpenMouseEvent) => void;
+  onMouseUp?: (event: OpenMouseEvent) => void;
+  onMouseMove?: (event: OpenMouseEvent) => void;
+  onMouseDrag?: (event: OpenMouseEvent) => void;
+  onMouseOver?: (event: OpenMouseEvent) => void;
+  onMouseOut?: (event: OpenMouseEvent) => void;
+  children: ReactNode;
+}) {
+  const accentFg = accentColor(accent);
+  return (
+    <box
+      ref={panelRef}
+      width={width}
+      minHeight={minHeight}
+      border
+      borderStyle={borderStyle ?? "double"}
+      borderColor={borderColor ?? accentFg}
+      backgroundColor={backgroundColor ?? colors.panel}
+      padding={1}
+      gap={1}
+      flexDirection="column"
+      onMouseDown={onMouseDown}
+      onMouseUp={onMouseUp}
+      onMouseMove={onMouseMove}
+      onMouseDrag={onMouseDrag}
+      onMouseOver={onMouseOver}
+      onMouseOut={onMouseOut}
+    >
+      <text fg={colors.paper}>
+        <span fg={accentFg}>[{code ?? "NEON"}]</span>
+        <strong> {title.toUpperCase()}</strong>
+      </text>
+      {subtitle ? (
+        <text fg={colors.dim}>
+          <span>{subtitle.toUpperCase()}</span>
+        </text>
+      ) : null}
+      {children}
+    </box>
+  );
+}
+
+function ThreeInset({
+  mode,
+  height,
+  accent,
+  caption,
+}: {
+  mode: WidgetMode;
+  height: number;
+  accent: string;
+  caption: string;
+}) {
+  const signal = useDemoSignal();
+  return (
+    <box flexDirection="column" gap={1}>
+      <text fg={accent}>
+        <strong>{caption.toUpperCase()}</strong>
+      </text>
+      <ThreeSceneView mode={mode} height={height} signal={signal} />
+    </box>
+  );
+}
+
+export function AppHeader({
+  section,
   phase,
   compact,
-  columns,
-  viewportHeight,
+  maximized,
+  selectedDemo,
+  volume,
+  onVolumeDown,
+  onVolumeUp,
+  onMute,
 }: {
+  section: SectionId;
   phase: number;
   compact: boolean;
-  columns: number;
-  viewportHeight: number;
+  maximized: boolean;
+  selectedDemo: DemoMeta;
+  volume: number;
+  onVolumeDown: () => void;
+  onVolumeUp: () => void;
+  onMute: () => void;
 }) {
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [layout, setLayout] = useState<ThreeLayout>("grid");
-  const [flashUntil, setFlashUntil] = useState(12);
-  const activeMode: WidgetMode = widgetModes[activeIndex] ?? "lattice";
-  const panelWidth = tileWidth(columns);
-  const sceneHeight = tileSceneHeight(columns, viewportHeight);
-  const fullHeight = focusSceneHeight(viewportHeight, compact);
-  const gridRows = chunkItems(widgetModes, columns);
+  const activeAccent = section === "three" || section === "all" ? colors.phosphor : colors.amber;
+  const controls = maximized
+    ? "ARROWS CYCLE  /  ENTER,F REFRESH AUDIO  /  ESC,T RETURN  /  1-5,H/L SECTIONS  /  +/- VOL  /  Q EXIT"
+    : "ARROWS MOVE  /  ENTER,F MAX  /  RIGHT-CLICK MAX  /  MOUSE LIVE  /  1-5,H/L SECTIONS  /  +/- VOL  /  Q EXIT";
 
-  const selectIndex = (nextIndex: number | ((current: number) => number)) => {
-    setActiveIndex((current) => {
-      const resolved =
-        typeof nextIndex === "function" ? nextIndex(current) : nextIndex;
-      if (resolved !== current) {
-        setFlashUntil(phase + 12);
-      }
-      return resolved;
-    });
+  return (
+    <box
+      border
+      borderStyle={compact ? "single" : "heavy"}
+      borderColor={activeAccent}
+      backgroundColor={colors.void}
+      paddingX={1}
+      gap={1}
+      flexDirection="column"
+    >
+      <box justifyContent="space-between" flexWrap="wrap">
+        <text fg={activeAccent}>
+          <strong>NEON EXODUS OPENTUI</strong>
+          <span fg={colors.paper}> / {section.toUpperCase()} / {formatCountdown(phase)}</span>
+        </text>
+        <text fg={selectedDemo ? colors[selectedDemo.accent] : colors.paper}>
+          <strong>{selectedDemo?.badge ?? "NONE"}</strong>
+          <span fg={colors.dim}> / {maximized ? "MAXIMIZED" : "GRID"}</span>
+        </text>
+      </box>
+      <box justifyContent="space-between" flexWrap="wrap" gap={1}>
+        <text fg={colors.dim}>{controls}</text>
+        <box alignItems="center" gap={1}>
+          <box backgroundColor={colors.violet} paddingX={1} onMouseDown={onVolumeDown}>
+            <text fg={colors.void}>
+              <strong>-</strong>
+            </text>
+          </box>
+          <box backgroundColor={colors.panel} paddingX={1} onMouseDown={onMute}>
+            <text fg={colors.violet}>
+              <strong>VOL {volumeBar(volume)} {String(volume).padStart(3, " ")}%</strong>
+            </text>
+          </box>
+          <box backgroundColor={colors.violet} paddingX={1} onMouseDown={onVolumeUp}>
+            <text fg={colors.void}>
+              <strong>+</strong>
+            </text>
+          </box>
+        </box>
+      </box>
+    </box>
+  );
+}
+
+export function Tabs({
+  section,
+  onChange,
+  compact,
+}: {
+  section: SectionId;
+  onChange: (section: SectionId) => void;
+  compact: boolean;
+}) {
+  const labels: Record<SectionId, string> = compact
+    ? { overview: "OVR", signals: "SIG", control: "CTL", three: "3D", all: "ALL" }
+    : { overview: "OVERVIEW", signals: "SIGNALS", control: "CONTROL", three: "THREE", all: "ALL" };
+
+  return (
+    <text fg={colors.dim}>
+      {sections.map((entry, index) => {
+        const active = entry.id === section;
+        const prefix = index === 0 ? "" : "  ";
+        const content = `${index + 1} ${labels[entry.id]}`;
+        return (
+          <span key={entry.id} fg={active ? colors.paper : colors.dim}>
+            {prefix}
+            {active ? <strong>[{content}]</strong> : content}
+          </span>
+        );
+      })}
+    </text>
+  );
+}
+
+export function DeckStatus({
+  section,
+  selectedDemo,
+  visibleCount,
+  compact,
+}: {
+  section: SectionId;
+  selectedDemo: DemoMeta;
+  visibleCount: number;
+  compact: boolean;
+}) {
+  const titles: Record<SectionId, { title: string; subtitle: string }> = {
+    overview: {
+      title: "Overlay And Command Surfaces",
+      subtitle: "Warning language, counters, identity panels, and live surveillance fragments",
+    },
+    signals: {
+      title: "Graphs And Signal Systems",
+      subtitle: "Meter walls, harmonic plots, circular fields, and density maps",
+    },
+    control: {
+      title: "Control And Topology Panels",
+      subtitle: "MAGI verdicts, tactical routes, infrastructure gates, and network lattices",
+    },
+    three: {
+      title: "3D Widget Suite",
+      subtitle: "Renderer-backed volumes for lattice rails, capture cages, field rings, and map slabs",
+    },
+    all: {
+      title: "All Demo Surfaces",
+      subtitle: "Twenty-four interactive widgets compressed into a single scan wall",
+    },
   };
 
-  useKeyboard((key) => {
-    if (key.name === "escape") {
-      setLayout("grid");
-      return;
-    }
+  return (
+    <NeonPanel
+      title={titles[section].title}
+      code={section === "all" ? "DECK-ALL" : "DECK-LIVE"}
+      accent={section === "all" ? "signal" : selectedDemo.accent}
+      subtitle={titles[section].subtitle}
+      width="100%"
+      minHeight={compact ? 6 : 7}
+    >
+      <text fg={colors.paper}>
+        SELECTED <span fg={colors[selectedDemo.accent]}>{selectedDemo.title.toUpperCase()}</span> / VIEW{" "}
+        <span fg={colors.signal}>{section.toUpperCase()}</span> / ACTIVE DEMOS{" "}
+        <span fg={colors.amber}>{String(visibleCount).padStart(2, "0")}</span>
+      </text>
+    </NeonPanel>
+  );
+}
 
-    if (key.name === "return" || key.name === "f") {
-      setLayout("focus");
-      return;
-    }
+function warningRows(signal: DemoSignal, phase: number) {
+  const warnings = [
+    { label: "EMERGENCY", detail: "ENTRY PLUG CONNECTION INSTABILITY", color: colors.alarm },
+    { label: "A.T.FIELD", detail: "GENERATION ABOVE NORMAL LIMIT", color: colors.amber },
+    { label: "REFUSED", detail: "DUMMY PLUG SYNCHRONIZATION REJECTED", color: colors.alarm },
+  ];
+  const focus = signal.active ? Math.min(warnings.length - 1, Math.floor(signal.y * warnings.length)) : phase % warnings.length;
+  return warnings.map((warning, index) => ({
+    ...warning,
+    active: index === focus,
+  }));
+}
 
-    if (key.name === "t") {
-      setLayout("grid");
-      return;
-    }
+function chartHeight(renderMode: RenderMode, fullHeight: number) {
+  if (renderMode === "compact") return 4;
+  if (renderMode === "max") return Math.max(10, fullHeight);
+  return 7;
+}
 
-    if (key.name === "left" || key.name === "right" || key.name === "up" || key.name === "down") {
-      if (layout === "focus") {
-        selectIndex((current) => {
-          if (key.name === "left" || key.name === "up") {
-            return (current - 1 + widgetModes.length) % widgetModes.length;
-          }
-          return (current + 1) % widgetModes.length;
-        });
-        return;
-      }
+function chartWidth(renderMode: RenderMode, contentWidth: number) {
+  if (renderMode === "compact") return Math.max(18, contentWidth - 4);
+  if (renderMode === "max") return Math.max(42, contentWidth - 6);
+  return Math.max(24, contentWidth - 6);
+}
 
-      selectIndex((current) => moveGridSelection(current, key.name, columns, widgetModes.length));
-      return;
-    }
-
-    const hotkeyIndex = ["5", "6", "7", "8", "9", "0"].indexOf(key.sequence ?? "");
-    if (hotkeyIndex !== -1) {
-      selectIndex(hotkeyIndex);
-    }
+function renderComponentIndex(contentWidth: number, signal: DemoSignal, renderMode: RenderMode) {
+  const lines = componentIndex(contentWidth)
+    .split("\n")
+    .filter(Boolean);
+  const visible = renderMode === "compact" ? 4 : renderMode === "max" ? lines.length : 8;
+  const focus = signal.active ? Math.min(lines.length - 1, Math.floor(signal.y * lines.length)) : -1;
+  return lines.slice(0, visible).map((line, index) => {
+    const active = index === focus;
+    return (
+      <text key={`${line}-${index}`} fg={active ? colors.signal : colors.paper}>
+        {active ? <strong>{line}</strong> : line}
+      </text>
+    );
   });
+}
+
+function DemoBody({
+  demo,
+  phase,
+  renderMode,
+  contentWidth,
+  sceneHeight,
+}: {
+  demo: DemoMeta;
+  phase: number;
+  renderMode: RenderMode;
+  contentWidth: number;
+  sceneHeight: number;
+}) {
+  const signal = useDemoSignal();
+  const width = chartWidth(renderMode, contentWidth);
+  const height = chartHeight(renderMode, sceneHeight);
+  const drivenPhase = phase + Math.round(signal.x * 21 + signal.y * 13 + signal.pulse * 17);
+
+  switch (demo.id) {
+    case "warning-stack": {
+      return (
+        <box flexDirection="column">
+          {warningRows(signal, phase).map((warning) => (
+            <text key={warning.label} fg={warning.active ? warning.color : colors.paper}>
+              {warning.active ? <strong>{warning.label}  {warning.detail}</strong> : `${warning.label}  ${warning.detail}`}
+            </text>
+          ))}
+        </box>
+      );
+    }
+    case "counter-board": {
+      return (
+        <box flexDirection="column">
+          <text fg={colors.signal}>
+            <strong>CLOCK</strong> 14:{String(drivenPhase % 60).padStart(2, "0")}:{String((drivenPhase * 3) % 60).padStart(2, "0")}
+          </text>
+          <text fg={colors.amber}>
+            <strong>COUNTDOWN</strong> {formatCountdown(drivenPhase)}
+          </text>
+          <text fg={signal.pressed || drivenPhase % 6 < 2 ? colors.alarm : colors.phosphor}>
+            <strong>SYNC</strong> {78 + ((drivenPhase * 7) % 19)}.{Math.floor(signal.x * 9)}%
+          </text>
+        </box>
+      );
+    }
+    case "profile-card": {
+      return (
+        <box flexDirection="column">
+          <text fg={colors.violet}>
+            <strong>SORYU ASUKA LANGLEY</strong>
+          </text>
+          <text fg={colors.signal}>PILOT      00010011 / VECTOR {Math.round(signal.x * 99).toString().padStart(2, "0")}</text>
+          <text fg={signal.active ? colors.amber : colors.paper}>SYNC       {drivenPhase % 5 < 2 ? "GREEN" : signal.pressed ? "ORANGE" : "BLUE"}</text>
+          <text fg={colors.paper}>ENTRY      {signal.pressed ? "OVERRIDE" : drivenPhase % 11 < 4 ? "LOCKED" : "LIVE"}</text>
+          <text fg={colors.dim}>[{`${"█".repeat(Math.max(2, Math.round(signal.depth * 14)))}`.padEnd(14, "·")}] PROFILE OVERLAY</text>
+        </box>
+      );
+    }
+    case "live-feed": {
+      return renderMode === "compact" ? (
+        <box flexDirection="column">
+          <text fg={colors.signal}>{liveFeed(width, Math.max(4, height), drivenPhase)}</text>
+          <text fg={colors.alarm}>SUBJECT EVA-02 / {signal.pressed ? "PINNED TRACK" : "LIVE"}</text>
+        </box>
+      ) : (
+        <ThreeInset
+          mode="capture"
+          height={height}
+          accent={colors.alarm}
+          caption={signal.pressed ? "Subject Eva-02 / pinned track / corruption active" : "Subject Eva-02 / capture lock / corruption active"}
+        />
+      );
+    }
+    case "event-log": {
+      const entries = [
+        "223229  A.T.FIELD PRODUCTION TRACE PATH LOCKED",
+        "223246  ENTRY PLUG EVA-01 ROUTE SHIFTED TO ALTERNATE LOOP",
+        "223263  SYNC HARMONICS GRAPH A+ / WARNING THRESHOLD CROSSED",
+        "223280  MAGI-3 REPORT: UNKNOWN / RECALCULATING",
+        "223297  TERMINAL DOGMA: CAMERA F-46b LIVE",
+      ];
+      const focus = signal.active ? Math.min(entries.length - 1, Math.floor(signal.y * entries.length)) : drivenPhase % entries.length;
+      return (
+        <box flexDirection="column">
+          {entries.map((entry, index) => (
+            <text key={entry} fg={index === focus ? colors.signal : colors.paper}>
+              {index === focus ? <strong>{entry}</strong> : entry}
+            </text>
+          ))}
+        </box>
+      );
+    }
+    case "channel-matrix": {
+      return <text fg={colors.paper}>{channelMatrix(width, drivenPhase + Math.round(signal.depth * 13))}</text>;
+    }
+    case "telemetry-rack": {
+      return <text fg={colors.phosphor}>{barChart(Math.max(12, width), Math.max(4, height), drivenPhase)}</text>;
+    }
+    case "biosignal-strip": {
+      return <text fg={colors.phosphor}>{signalChart(Math.max(18, width), Math.max(4, height), drivenPhase)}</text>;
+    }
+    case "harmonic-graph": {
+      return <text fg={colors.amber}>{harmonicField(Math.max(18, width), Math.max(4, height), drivenPhase)}</text>;
+    }
+    case "psychograph": {
+      return <text fg={colors.amber}>{psychographChart(Math.max(18, width), Math.max(4, height), drivenPhase)}</text>;
+    }
+    case "field-ring": {
+      return renderMode === "compact" ? (
+        <text fg={colors.signal}>{circularField(Math.max(18, width), Math.max(4, height), drivenPhase)}</text>
+      ) : (
+        <ThreeInset
+          mode="atfield"
+          height={height}
+          accent={colors.signal}
+          caption={signal.active ? "Locking reticle / field concentration / vector drive" : "Locking reticle / field concentration / live"}
+        />
+      );
+    }
+    case "hex-heatmap": {
+      return <text fg={colors.amber}>{heatmap(Math.max(16, width), Math.max(4, height), drivenPhase)}</text>;
+    }
+    case "magi-board": {
+      const verdict = signal.pressed ? "OVERRIDE" : drivenPhase % 6 < 3 ? "RESOLVE" : signal.active ? "REVIEW" : "UNKNOWN";
+      const magi = [
+        "╭──── BALTHASAR-2 ────╮",
+        "│                     │",
+        `│      ${verdict.padEnd(10, " ")}   │`,
+        "╰── CASPER-3 ── MELCHIOR-1 ─╯",
+      ];
+      return (
+        <box flexDirection="column">
+          {magi.map((line, index) => (
+            <text key={index} fg={index === 2 && verdict !== "RESOLVE" ? colors.alarm : colors.phosphor}>
+              {line}
+            </text>
+          ))}
+        </box>
+      );
+    }
+    case "route-board": {
+      return <text fg={colors.amber}>{routeBoard(Math.max(14, width), Math.max(4, height), drivenPhase)}</text>;
+    }
+    case "gate-status": {
+      return (
+        <box flexDirection="column">
+          <text fg={colors.alarm}>LOCKED    WAITING FOR PERMISSION KEY</text>
+          <text fg={signal.pressed || signal.x > 0.58 ? colors.phosphor : colors.amber}>
+            {signal.pressed ? "PURGE     OUTER GATE FORCE-CYCLE" : "OPEN      OUTER AND LOCK GATE IMMEDIATELY"}
+          </text>
+          <text fg={signal.active && signal.y > 0.62 ? colors.alarm : colors.paper}>
+            {signal.active && signal.y > 0.62 ? "REJECT    EMERGENCY DIRECTION REFUSAL" : "REFUSED   ENTRY PLUG EVA-01 EMERGENCY DIRECTION SYSTEM"}
+          </text>
+        </box>
+      );
+    }
+    case "tactical-map": {
+      return renderMode === "compact" ? (
+        <text fg={colors.phosphor}>{tacticalMap(Math.max(18, width), Math.max(4, height), drivenPhase)}</text>
+      ) : (
+        <ThreeInset
+          mode="mapslab"
+          height={height}
+          accent={colors.phosphor}
+          caption={signal.active ? "Topographic sweep / terrain mesh / vector lock" : "Topographic sweep / terrain mesh / live"}
+        />
+      );
+    }
+    case "network-topology": {
+      return renderMode === "compact" ? (
+        <text fg={colors.amber}>{networkTopology(Math.max(18, width), Math.max(4, height), drivenPhase)}</text>
+      ) : (
+        <ThreeInset
+          mode="lattice"
+          height={height}
+          accent={colors.amber}
+          caption={signal.active ? "Localized breaks / mesh redraw / cursor focus" : "Localized breaks / mesh redraw / live"}
+        />
+      );
+    }
+    case "component-index": {
+      return <box flexDirection="column">{renderComponentIndex(Math.max(18, width), signal, renderMode)}</box>;
+    }
+    default: {
+      if (demo.mode) {
+        return (
+          <box flexDirection="column" gap={1}>
+            <text fg={colors[demo.accent]}>
+              <strong>{signal.active ? "VECTOR DRIVE / LIVE VOLUME" : "NEON VOLUME / READY"}</strong>
+            </text>
+            <ThreeInset
+              mode={demo.mode}
+              height={height}
+              accent={colors[demo.accent]}
+              caption={`${widgetTitle(demo.mode)} / ${signal.pressed ? "pressure lock" : "free rotation"} / ${widgetSubtitle(demo.mode)}`}
+            />
+          </box>
+        );
+      }
+      return (
+        <text fg={colors.paper}>
+          {demo.title.toUpperCase()}
+        </text>
+      );
+    }
+  }
+}
+
+function shellMinHeight(renderMode: RenderMode, sceneHeight: number) {
+  if (renderMode === "max") return sceneHeight + 7;
+  if (renderMode === "compact") return sceneHeight + 7;
+  return sceneHeight + 8;
+}
+
+function DemoShell({
+  demo,
+  phase,
+  selected,
+  flashing,
+  pulsing,
+  renderMode,
+  width,
+  contentWidth,
+  sceneHeight,
+  actionLabel,
+  onSelect,
+  onAction,
+}: {
+  demo: DemoMeta;
+  phase: number;
+  selected: boolean;
+  flashing: boolean;
+  pulsing: boolean;
+  renderMode: RenderMode;
+  width: number | `${number}%`;
+  contentWidth: number;
+  sceneHeight: number;
+  actionLabel: string;
+  onSelect: (id: string) => void;
+  onAction: (demo: DemoMeta) => void;
+}) {
+  const [signal, setSignal] = useState<DemoSignal>(idleSignal);
+  const panelRef = useRef<BoxRenderable | null>(null);
+  const pressedRef = useRef(false);
+  const clickRef = useRef(0);
+
+  const borderTone = selected
+    ? flashing
+      ? colors.paper
+      : pulsing
+        ? colors[demo.accent]
+        : colors.phosphor
+    : colors.violet;
+  const bannerTone = selected ? (flashing ? colors.paper : colors[demo.accent]) : colors.voidSoft;
+  const bodyTone = selected && pulsing ? colors.voidSoft : colors.panel;
+
+  const updateSignal = (event: OpenMouseEvent, pressed = pressedRef.current) => {
+    if (!panelRef.current) {
+      return;
+    }
+    setSignal(buildMouseSignal(event, panelRef.current, pressed));
+  };
+
+  return (
+    <DemoSignalProvider signal={signal}>
+      <NeonPanel
+        panelRef={panelRef}
+        title={demo.title}
+        code={demo.code}
+        accent={selected ? demo.accent : "violet"}
+        subtitle={demo.subtitle}
+        width={width}
+        minHeight={shellMinHeight(renderMode, sceneHeight)}
+        borderStyle={selected ? "heavy" : "single"}
+        borderColor={borderTone}
+        backgroundColor={bodyTone}
+        onMouseOver={(event) => {
+          onSelect(demo.id);
+          updateSignal(event);
+        }}
+        onMouseMove={(event) => {
+          onSelect(demo.id);
+          updateSignal(event);
+        }}
+        onMouseDrag={(event) => {
+          pressedRef.current = true;
+          onSelect(demo.id);
+          updateSignal(event, true);
+        }}
+        onMouseDown={(event) => {
+          onSelect(demo.id);
+          if (event.button === 2) {
+            event.stopPropagation();
+            onAction(demo);
+            return;
+          }
+          const now = Date.now();
+          if (now - clickRef.current < 260) {
+            onAction(demo);
+          }
+          clickRef.current = now;
+          pressedRef.current = true;
+          updateSignal(event, true);
+        }}
+        onMouseUp={(event) => {
+          pressedRef.current = false;
+          updateSignal(event, false);
+        }}
+        onMouseOut={() => {
+          pressedRef.current = false;
+          setSignal(idleSignal);
+        }}
+      >
+        <box justifyContent="space-between" gap={1}>
+          <box backgroundColor={bannerTone} paddingX={1}>
+            <text fg={selected ? colors.void : colors.paper}>
+              <strong>
+                {selected
+                  ? flashing
+                    ? "ACTIVE WIDGET / SELECTION FLASH"
+                    : signal.active
+                      ? "ACTIVE WIDGET / VECTOR LOCK"
+                      : "ACTIVE WIDGET / HOT"
+                  : demo.section.toUpperCase()}
+              </strong>
+            </text>
+          </box>
+          <box
+            backgroundColor={colors.alarm}
+            paddingX={1}
+            onMouseDown={(event) => {
+              event.stopPropagation();
+              onSelect(demo.id);
+              onAction(demo);
+            }}
+          >
+            <text fg={colors.void}>
+              <strong>{actionLabel}</strong>
+            </text>
+          </box>
+        </box>
+        <DemoBody
+          demo={demo}
+          phase={phase}
+          renderMode={renderMode}
+          contentWidth={contentWidth}
+          sceneHeight={sceneHeight}
+        />
+      </NeonPanel>
+    </DemoSignalProvider>
+  );
+}
+
+export function DemoDeck({
+  section,
+  phase,
+  selectedId,
+  flashUntil,
+  columns,
+  contentWidth,
+  sceneHeight,
+  onSelect,
+  onMaximize,
+}: {
+  section: SectionId;
+  phase: number;
+  selectedId: string;
+  flashUntil: number;
+  columns: number;
+  contentWidth: number;
+  sceneHeight: number;
+  onSelect: (id: string) => void;
+  onMaximize: (demo: DemoMeta) => void;
+}) {
+  const visibleDemos = demosForSection(section);
+  const rows = chunkItems(visibleDemos, columns);
+  const width = tileWidth(columns);
+  const renderMode: RenderMode = section === "all" ? "compact" : "card";
 
   return (
     <box flexDirection="column" gap={1}>
-      <NeonPanel
-        title="Three Render Deck"
-        code={layout === "grid" ? "THREE-GRID" : "THREE-FULL"}
-        accent={layout === "grid" ? "amber" : "signal"}
-        width="100%"
-        minHeight={5}
-        subtitle={layout === "grid" ? "All six widgets render live in the tiled deck." : "Focused inspection mode."}
-      >
-        <text fg={colors.paper}>
-          SELECTED <span fg={colors.signal}>{widgetTitle(activeMode).toUpperCase()}</span>  /  SLOT{" "}
-          <span fg={colors.amber}>{String(activeIndex + 1).padStart(2, "0")}</span> OF{" "}
-          <span fg={colors.amber}>{String(widgetModes.length).padStart(2, "0")}</span>  /  LAYOUT{" "}
-          <span fg={colors.phosphor}>{layout === "grid" ? "TILED" : "FULLSCREEN"}</span>
-        </text>
-        <text fg={colors.dim}>
-          ARROWS MOVE SELECTION. ENTER OR F OPENS FULLSCREEN. ESC OR T RETURNS TO THE GRID. DIRECT HOTKEYS:{" "}
-          {widgetModes.map((mode, index) => widgetHotkey(index)).join(" ")}
-        </text>
-      </NeonPanel>
-
-      {layout === "focus" ? (
-        <NeonPanel
-          title={widgetTitle(activeMode)}
-          code={`THREE-${widgetHotkey(activeIndex)}`}
-          accent="signal"
-          width="100%"
-          minHeight={fullHeight + 5}
-          subtitle={widgetSubtitle(activeMode)}
-        >
-          <text fg={colors.phosphor}>
-            FULLSCREEN RENDER  /  LEFT RIGHT UP DOWN TO CYCLE THROUGH THE ACTIVE WIDGET FAMILY
-          </text>
-          <ThreeSceneView mode={activeMode} height={fullHeight} />
-        </NeonPanel>
-      ) : (
-        <box flexDirection="column" gap={1}>
-          {gridRows.map((rowModes, rowIndex) => (
-            <box key={`row-${rowIndex}`} width="100%" flexDirection="row" gap={1}>
-              {rowModes.map((mode, columnIndex) => {
-                const index = rowIndex * columns + columnIndex;
-                const active = index === activeIndex;
-                const flashing = active && phase <= flashUntil;
-                const pulsing = active && phase % 6 < 3;
-                const borderTone = active
-                  ? flashing
-                    ? colors.paper
-                    : pulsing
-                      ? colors.signal
-                      : colors.phosphor
-                  : colors.violet;
-                const bannerTone = active
-                  ? flashing
-                    ? colors.paper
-                    : pulsing
-                      ? colors.signal
-                      : colors.phosphor
-                  : colors.void;
-                return (
-                  <NeonPanel
-                    key={mode}
-                    title={widgetTitle(mode)}
-                    code={`THREE-${widgetHotkey(index)}`}
-                    accent={active ? "signal" : "violet"}
-                    width={panelWidth}
-                    minHeight={sceneHeight + 6}
-                    subtitle={widgetSubtitle(mode)}
-                    borderStyle={active ? "heavy" : "single"}
-                    borderColor={borderTone}
-                    backgroundColor={active && pulsing ? colors.voidSoft : colors.panel}
-                  >
-                    <box backgroundColor={bannerTone} paddingX={1}>
-                      <text fg={active ? colors.void : colors.paper}>
-                        <strong>
-                          {active
-                            ? flashing
-                              ? "ACTIVE WIDGET / SELECTION FLASH / ENTER TO EXPAND"
-                              : "ACTIVE WIDGET / LIVE LOCK / ENTER TO EXPAND"
-                            : "READY / PRESS ENTER OR F TO EXPAND"}
-                        </strong>
-                      </text>
-                    </box>
-                    <ThreeSceneView mode={mode} height={sceneHeight} />
-                  </NeonPanel>
-                );
-              })}
-            </box>
-          ))}
+      {rows.map((row, rowIndex) => (
+        <box key={`row-${rowIndex}`} width="100%" flexDirection="row" gap={1}>
+          {row.map((demo) => {
+            const selected = demo.id === selectedId;
+            const flashing = selected && phase <= flashUntil;
+            const pulsing = selected && phase % 6 < 3;
+            return (
+              <DemoShell
+                key={demo.id}
+                demo={demo}
+                phase={phase}
+                selected={selected}
+                flashing={flashing}
+                pulsing={pulsing}
+                renderMode={renderMode}
+                width={width}
+                contentWidth={contentWidth}
+                sceneHeight={sceneHeight}
+                actionLabel="MAX"
+                onSelect={onSelect}
+                onAction={onMaximize}
+              />
+            );
+          })}
         </box>
-      )}
+      ))}
     </box>
   );
+}
+
+export function DemoFocus({
+  demo,
+  phase,
+  flashUntil,
+  contentWidth,
+  sceneHeight,
+  onSelect,
+  onClose,
+}: {
+  demo: DemoMeta;
+  phase: number;
+  flashUntil: number;
+  contentWidth: number;
+  sceneHeight: number;
+  onSelect: (id: string) => void;
+  onClose: (demo: DemoMeta) => void;
+}) {
+  return (
+    <DemoShell
+      demo={demo}
+      phase={phase}
+      selected
+      flashing={phase <= flashUntil}
+      pulsing={phase % 6 < 3}
+      renderMode="max"
+      width="100%"
+      contentWidth={contentWidth}
+      sceneHeight={sceneHeight}
+      actionLabel="CLOSE"
+      onSelect={onSelect}
+      onAction={onClose}
+    />
+  );
+}
+
+export function demoById(id: string) {
+  return demos.find((demo) => demo.id === id);
+}
+
+export function demoIndex(id: string, section: SectionId) {
+  return demosForSection(section).findIndex((demo) => demo.id === id);
+}
+
+export function cycleDemo(section: SectionId, selectedId: string, direction: -1 | 1) {
+  const visible = demosForSection(section);
+  const current = visible.findIndex((demo) => demo.id === selectedId);
+  if (current === -1 || visible.length === 0) {
+    return visible[0]?.id ?? demos[0]?.id ?? "";
+  }
+  return visible[(current + direction + visible.length) % visible.length]?.id ?? selectedId;
 }

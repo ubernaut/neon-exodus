@@ -12,7 +12,8 @@ export const colors = {
 };
 
 export type Accent = "alarm" | "amber" | "phosphor" | "signal" | "violet";
-export type SectionId = "overview" | "signals" | "control" | "three";
+export type SectionId = "overview" | "signals" | "control" | "three" | "all";
+export type RenderMode = "card" | "compact" | "max";
 export type WidgetMode =
   | "lattice"
   | "atfield"
@@ -21,11 +22,45 @@ export type WidgetMode =
   | "mapslab"
   | "solenoid";
 
+export type DemoSignal = {
+  x: number;
+  y: number;
+  depth: number;
+  twist: number;
+  lift: number;
+  pulse: number;
+  active: boolean;
+  pressed: boolean;
+};
+
+export const idleSignal: DemoSignal = {
+  x: 0.5,
+  y: 0.5,
+  depth: 0.12,
+  twist: 0,
+  lift: 0,
+  pulse: 0.12,
+  active: false,
+  pressed: false,
+};
+
+export type DemoMeta = {
+  id: string;
+  title: string;
+  code: string;
+  badge: string;
+  accent: Accent;
+  section: Exclude<SectionId, "all">;
+  subtitle: string;
+  mode?: WidgetMode;
+};
+
 export const sections: Array<{ id: SectionId; label: string }> = [
   { id: "overview", label: "Overview" },
   { id: "signals", label: "Signals" },
   { id: "control", label: "Control" },
-  { id: "three", label: "3D" },
+  { id: "three", label: "Three" },
+  { id: "all", label: "All" },
 ];
 
 export const widgetModes: WidgetMode[] = [
@@ -37,47 +72,251 @@ export const widgetModes: WidgetMode[] = [
   "solenoid",
 ];
 
+export const demos: DemoMeta[] = [
+  {
+    id: "warning-stack",
+    title: "Warning Stack",
+    code: "ALERT-000",
+    badge: "WARN",
+    accent: "alarm",
+    section: "overview",
+    subtitle: "Typography as interrupt",
+  },
+  {
+    id: "counter-board",
+    title: "Counter And Clock Boards",
+    code: "TIME-SEG",
+    badge: "TIME",
+    accent: "signal",
+    section: "overview",
+    subtitle: "Stepped numeric boards",
+  },
+  {
+    id: "profile-card",
+    title: "Pilot State Card",
+    code: "TEST-PLUG-02",
+    badge: "PILOT",
+    accent: "violet",
+    section: "overview",
+    subtitle: "Identity and diagnostics overlay",
+  },
+  {
+    id: "live-feed",
+    title: "Live Feed / Corruption",
+    code: "LIVE-07",
+    badge: "LIVE",
+    accent: "alarm",
+    section: "overview",
+    subtitle: "Low-fidelity surveillance panel",
+  },
+  {
+    id: "event-log",
+    title: "Event Log",
+    code: "LOG-223.229",
+    badge: "LOG",
+    accent: "amber",
+    section: "overview",
+    subtitle: "Dense edge-annotated telemetry",
+  },
+  {
+    id: "channel-matrix",
+    title: "Channel Matrix",
+    code: "MATRIX-C",
+    badge: "MATRIX",
+    accent: "phosphor",
+    section: "overview",
+    subtitle: "Stepped test-plug and reserve columns",
+  },
+  {
+    id: "telemetry-rack",
+    title: "Telemetry Rack",
+    code: "LIFE-SUPPORT",
+    badge: "RACK",
+    accent: "alarm",
+    section: "signals",
+    subtitle: "Asynchronous meter walls",
+  },
+  {
+    id: "biosignal-strip",
+    title: "Biosignal Strip",
+    code: "WAVE-85",
+    badge: "BIO",
+    accent: "phosphor",
+    section: "signals",
+    subtitle: "Drifting traces and threshold events",
+  },
+  {
+    id: "harmonic-graph",
+    title: "Harmonic Graph",
+    code: "SIM-GRAPH A+",
+    badge: "HARM",
+    accent: "violet",
+    section: "signals",
+    subtitle: "Interference curves and psychograph bleed",
+  },
+  {
+    id: "psychograph",
+    title: "Psychograph Display",
+    code: "PHASE-4",
+    badge: "PSY",
+    accent: "amber",
+    section: "signals",
+    subtitle: "Behavioral scribble display",
+  },
+  {
+    id: "field-ring",
+    title: "Field Ring Capture",
+    code: "CAPTURE-01",
+    badge: "FIELD",
+    accent: "signal",
+    section: "signals",
+    subtitle: "Locking reticle and field concentration",
+  },
+  {
+    id: "hex-heatmap",
+    title: "Hex Heatmap",
+    code: "AREA-DENSITY",
+    badge: "HEX",
+    accent: "amber",
+    section: "signals",
+    subtitle: "Concentrated field occupation",
+  },
+  {
+    id: "magi-board",
+    title: "MAGI Decision Board",
+    code: "CODE-239",
+    badge: "MAGI",
+    accent: "amber",
+    section: "control",
+    subtitle: "Discrete voting reconfiguration",
+  },
+  {
+    id: "route-board",
+    title: "Route / Gate Board",
+    code: "ENTRY-PLUG",
+    badge: "ROUTE",
+    accent: "alarm",
+    section: "control",
+    subtitle: "Mechanical routing and disconnect states",
+  },
+  {
+    id: "gate-status",
+    title: "Infrastructure Gates",
+    code: "CL3-SEG",
+    badge: "GATES",
+    accent: "signal",
+    section: "control",
+    subtitle: "Open, locked, and refused mechanical states",
+  },
+  {
+    id: "tactical-map",
+    title: "Tactical Map",
+    code: "TOKYO-3 / LIVE",
+    badge: "MAP",
+    accent: "phosphor",
+    section: "control",
+    subtitle: "Topographic scan sweep and target boxes",
+  },
+  {
+    id: "network-topology",
+    title: "Network Topology",
+    code: "NERV-TOPOLOGY",
+    badge: "NET",
+    accent: "amber",
+    section: "control",
+    subtitle: "Localized breaks and mesh redraw",
+  },
+  {
+    id: "component-index",
+    title: "Component Index",
+    code: "SUITE-ALL",
+    badge: "INDEX",
+    accent: "amber",
+    section: "control",
+    subtitle: "All selectable demo surfaces",
+  },
+  {
+    id: "three-lattice",
+    title: "Wireframe Lattice Chamber",
+    code: "THREE-5",
+    badge: "LATTICE",
+    accent: "signal",
+    section: "three",
+    subtitle: "Nested cubic rails with slow axial drift and pilot-cage geometry.",
+    mode: "lattice",
+  },
+  {
+    id: "three-atfield",
+    title: "A.T.Field Ring Volume",
+    code: "THREE-6",
+    badge: "A.T",
+    accent: "amber",
+    section: "three",
+    subtitle: "Rotating A.T.Field torus stack wrapped around a violet harmonic spine.",
+    mode: "atfield",
+  },
+  {
+    id: "three-hexshell",
+    title: "Hex Cell Shell",
+    code: "THREE-7",
+    badge: "HEXCELL",
+    accent: "phosphor",
+    section: "three",
+    subtitle: "Geodesic shell study for defensive barrier and armor-cell readouts.",
+    mode: "hexshell",
+  },
+  {
+    id: "three-capture",
+    title: "Capture Cage",
+    code: "THREE-8",
+    badge: "CAGE",
+    accent: "alarm",
+    section: "three",
+    subtitle: "Twin containment cages with a live central helix for lock-state sweeps.",
+    mode: "capture",
+  },
+  {
+    id: "three-mapslab",
+    title: "Volumetric Map Slab",
+    code: "THREE-9",
+    badge: "SLAB",
+    accent: "phosphor",
+    section: "three",
+    subtitle: "Topographic wire slab for city-grid terrain and underground route plots.",
+    mode: "mapslab",
+  },
+  {
+    id: "three-solenoid",
+    title: "Solenoid Field Volume",
+    code: "THREE-0",
+    badge: "COIL",
+    accent: "violet",
+    section: "three",
+    subtitle: "Crossed coils for field compression, inductive resonance, and surge scans.",
+    mode: "solenoid",
+  },
+];
+
 export const demoRegistry = {
-  overview: [
-    "Warning Stack",
-    "Counter And Clock Boards",
-    "Pilot State Card",
-    "Live Feed / Corruption",
-    "Event Log",
-    "Channel Matrix",
-  ],
-  signals: [
-    "Telemetry Rack",
-    "Biosignal Strip",
-    "Harmonic Graph",
-    "Psychograph Display",
-    "Field Ring Capture",
-    "Hex Heatmap",
-  ],
-  control: [
-    "MAGI Decision Board",
-    "Route / Gate Board",
-    "Infrastructure Gates",
-    "Tactical Map",
-    "Network Topology",
-    "Component Index",
-  ],
-  three: [
-    "Wireframe Lattice Chamber",
-    "A.T.Field Ring Volume",
-    "Hex Cell Shell",
-    "Capture Cage",
-    "Volumetric Map Slab",
-    "Solenoid Field Volume",
-  ],
+  overview: demos.filter((demo) => demo.section === "overview").map((demo) => demo.title),
+  signals: demos.filter((demo) => demo.section === "signals").map((demo) => demo.title),
+  control: demos.filter((demo) => demo.section === "control").map((demo) => demo.title),
+  three: demos.filter((demo) => demo.section === "three").map((demo) => demo.title),
 } as const;
 
-export const showcaseDemos = [
-  ...demoRegistry.overview,
-  ...demoRegistry.signals,
-  ...demoRegistry.control,
-  ...demoRegistry.three,
-];
+export const showcaseDemos = demos.map((demo) => demo.title);
+
+export function demosForSection(section: SectionId) {
+  return section === "all" ? demos : demos.filter((demo) => demo.section === section);
+}
+
+export function widgetTitle(mode: WidgetMode) {
+  return demos.find((demo) => demo.mode === mode)?.title ?? mode.toUpperCase();
+}
+
+export function widgetSubtitle(mode: WidgetMode) {
+  return demos.find((demo) => demo.mode === mode)?.subtitle ?? "";
+}
 
 export function range(count: number) {
   return Array.from({ length: count }, (_, index) => index);

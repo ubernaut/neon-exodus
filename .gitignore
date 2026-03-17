@@ -1,4 +1,6 @@
 plan/refs/NeonExodus/images/
 plan/refs/NeonExodus/gifs/
 plan/refs/NeonExodus/_analysis/
-screenshots/
+screenshots/*
+!screenshots/webtui-neon-exodus.png
+!screenshots/opentui-neon-exodus.svg

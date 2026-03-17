@@ -4,7 +4,8 @@ import { App } from "./app";
 
 const renderer = await createCliRenderer({
   useAlternateScreen: true,
-  useMouse: false,
+  useMouse: true,
+  enableMouseMovement: true,
   exitOnCtrlC: true,
   targetFps: 12,
   maxFps: 24,
