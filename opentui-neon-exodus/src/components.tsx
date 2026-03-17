@@ -152,11 +152,13 @@ export function NeonPanel({
   code,
   accent = "amber",
   subtitle,
+  showSubtitle = true,
   width = "49%",
   minHeight = 10,
   borderStyle,
   borderColor,
   backgroundColor,
+  headerRight,
   panelRef,
   onMouseDown,
   onMouseUp,
@@ -170,11 +172,13 @@ export function NeonPanel({
   code?: string;
   accent?: Accent;
   subtitle?: string;
+  showSubtitle?: boolean;
   width?: number | `${number}%`;
   minHeight?: number;
   borderStyle?: "single" | "double" | "heavy";
   borderColor?: string;
   backgroundColor?: string;
+  headerRight?: ReactNode;
   panelRef?: Ref<BoxRenderable>;
   onMouseDown?: (event: OpenMouseEvent) => void;
   onMouseUp?: (event: OpenMouseEvent) => void;
@@ -194,8 +198,7 @@ export function NeonPanel({
       borderStyle={borderStyle ?? "double"}
       borderColor={borderColor ?? accentFg}
       backgroundColor={backgroundColor ?? colors.panel}
-      padding={1}
-      gap={1}
+      padding={0}
       flexDirection="column"
       onMouseDown={onMouseDown}
       onMouseUp={onMouseUp}
@@ -204,16 +207,21 @@ export function NeonPanel({
       onMouseOver={onMouseOver}
       onMouseOut={onMouseOut}
     >
-      <text fg={colors.paper}>
-        <span fg={accentFg}>[{code ?? "NEON"}]</span>
-        <strong> {title.toUpperCase()}</strong>
-      </text>
-      {subtitle ? (
-        <text fg={colors.dim}>
-          <span>{subtitle.toUpperCase()}</span>
-        </text>
-      ) : null}
-      {children}
+      <box paddingX={1} flexDirection="column">
+        <box justifyContent="space-between" alignItems="center">
+          <text fg={colors.paper}>
+            <span fg={accentFg}>[{code ?? "NEON"}]</span>
+            <strong> {title.toUpperCase()}</strong>
+          </text>
+          {headerRight ? <box marginLeft={1}>{headerRight}</box> : null}
+        </box>
+        {subtitle && showSubtitle ? (
+          <text fg={colors.dim}>
+            <span>{subtitle.toUpperCase()}</span>
+          </text>
+        ) : null}
+        {children}
+      </box>
     </box>
   );
 }
@@ -642,9 +650,9 @@ function DemoBody({
 }
 
 function shellMinHeight(renderMode: RenderMode, sceneHeight: number) {
-  if (renderMode === "max") return sceneHeight + 7;
-  if (renderMode === "compact") return sceneHeight + 7;
-  return sceneHeight + 8;
+  if (renderMode === "max") return sceneHeight + 5;
+  if (renderMode === "compact") return sceneHeight + 5;
+  return sceneHeight + 6;
 }
 
 function DemoShell({
@@ -670,7 +678,7 @@ function DemoShell({
   width: number | `${number}%`;
   contentWidth: number;
   sceneHeight: number;
-  actionLabel: string;
+  actionLabel?: string;
   onSelect: (id: string) => void;
   onAction: (demo: DemoMeta) => void;
 }) {
@@ -703,12 +711,29 @@ function DemoShell({
         title={demo.title}
         code={demo.code}
         accent={selected ? demo.accent : "violet"}
-        subtitle={demo.subtitle}
+        showSubtitle={false}
         width={width}
         minHeight={shellMinHeight(renderMode, sceneHeight)}
         borderStyle={selected ? "heavy" : "single"}
         borderColor={borderTone}
         backgroundColor={bodyTone}
+        headerRight={
+          renderMode === "max" && actionLabel ? (
+            <box
+              backgroundColor={selected ? colors[demo.accent] : colors.alarm}
+              paddingX={1}
+              onMouseDown={(event) => {
+                event.stopPropagation();
+                onSelect(demo.id);
+                onAction(demo);
+              }}
+            >
+              <text fg={colors.void}>
+                <strong>{actionLabel}</strong>
+              </text>
+            </box>
+          ) : undefined
+        }
         onMouseOver={(event) => {
           onSelect(demo.id);
           updateSignal(event);
@@ -746,34 +771,6 @@ function DemoShell({
           setSignal(idleSignal);
         }}
       >
-        <box justifyContent="space-between" gap={1}>
-          <box backgroundColor={bannerTone} paddingX={1}>
-            <text fg={selected ? colors.void : colors.paper}>
-              <strong>
-                {selected
-                  ? flashing
-                    ? "ACTIVE WIDGET / SELECTION FLASH"
-                    : signal.active
-                      ? "ACTIVE WIDGET / VECTOR LOCK"
-                      : "ACTIVE WIDGET / HOT"
-                  : demo.section.toUpperCase()}
-              </strong>
-            </text>
-          </box>
-          <box
-            backgroundColor={colors.alarm}
-            paddingX={1}
-            onMouseDown={(event) => {
-              event.stopPropagation();
-              onSelect(demo.id);
-              onAction(demo);
-            }}
-          >
-            <text fg={colors.void}>
-              <strong>{actionLabel}</strong>
-            </text>
-          </box>
-        </box>
         <DemoBody
           demo={demo}
           phase={phase}
@@ -832,7 +829,6 @@ export function DemoDeck({
                 width={width}
                 contentWidth={contentWidth}
                 sceneHeight={sceneHeight}
-                actionLabel="MAX"
                 onSelect={onSelect}
                 onAction={onMaximize}
               />
