@@ -13,6 +13,20 @@ Both apps expose the same widget families: warning overlays, counters, pilot/pro
 
 ![Neon Exodus OpenTUI screenshot](screenshots/opentui-neon-exodus.svg)
 
+## Demo Videos
+
+### webTUI
+
+<video src="webtui.mp4" controls muted loop playsinline></video>
+
+[Direct video link](webtui.mp4)
+
+### OpenTUI
+
+<video src="openTUI.mp4" controls muted loop playsinline></video>
+
+[Direct video link](openTUI.mp4)
+
 ## Project Layout
 
 - [`plan.md`](plan.md): interface analysis and implementation plan
@@ -20,6 +34,8 @@ Both apps expose the same widget families: warning overlays, counters, pilot/pro
 - [`opentui-neon-exodus/`](opentui-neon-exodus/): terminal showcase app
 - [`docs/`](docs/): static build output for GitHub Pages
 - [`screenshots/`](screenshots/): captured screenshots used in this README
+- [`webtui.mp4`](webtui.mp4): browser showcase capture
+- [`openTUI.mp4`](openTUI.mp4): terminal showcase capture
 
 ## Running
 
